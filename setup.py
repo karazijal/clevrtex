@@ -2,7 +2,7 @@ import setuptools
 import os
 import logging
 
-logger = logging.getLogger('ool')
+logger = logging.getLogger("ool")
 
 reqs = []
 # if os.path.exists('other_should_be_deleted/requirements.txt'):
@@ -22,7 +22,6 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.8',
-    install_requires=reqs  # see conda environment.yml
+    python_requires=">=3.8",
+    install_requires=reqs,  # see conda environment.yml
 )
-

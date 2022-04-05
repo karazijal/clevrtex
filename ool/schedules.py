@@ -9,10 +9,12 @@ class Schedule:
     @staticmethod
     def parse_tuple_or_list(s):
         s = s.strip()
-        if not (s.startswith('(') and s.endswith(')')) or (s.startswith('[') and s.endswith(']')):
+        if not (s.startswith("(") and s.endswith(")")) or (
+            s.startswith("[") and s.endswith("]")
+        ):
             raise ValueError(f"{s} not a tuple")
         s = s[1:-1].strip()
-        return tuple(Schedule.int_or_float(p.strip()) for p in s.split(','))
+        return tuple(Schedule.int_or_float(p.strip()) for p in s.split(","))
 
     @staticmethod
     def int_or_float(v):
@@ -40,7 +42,7 @@ class Schedule:
     @staticmethod
     def maybe_try(s, cls):
         try:
-            if not s.startswith('itr_'):
+            if not s.startswith("itr_"):
                 return cls(s)
             else:
                 return ItrSchedule(cls(s[4:]))
@@ -52,10 +54,12 @@ class Schedule:
         if s is None:
             return None
         s = str(s).strip()
-        r = Schedule.maybe_try(s, LinearSchedule) or \
-            Schedule.maybe_try(s, SwitchSchedule) or \
-            Schedule.maybe_try(s, SetSchedule) or \
-            Schedule.maybe_try(s, ConstSchedule)
+        r = (
+            Schedule.maybe_try(s, LinearSchedule)
+            or Schedule.maybe_try(s, SwitchSchedule)
+            or Schedule.maybe_try(s, SetSchedule)
+            or Schedule.maybe_try(s, ConstSchedule)
+        )
         if r is None:
             raise ValueError(f"Unknown schedule: {s}")
         return r
@@ -71,7 +75,7 @@ class ItrSchedule(Schedule):
         return self.s.value(step, total_steps)
 
     def __str__(self):
-        return 'itr_' + str(self.s)
+        return "itr_" + str(self.s)
 
 
 class ConstSchedule(Schedule):
@@ -91,9 +95,9 @@ class SetSchedule(ConstSchedule):
     """Like Const but for strings"""
 
     def __init__(self, s):
-        if not s.startswith('set('):
+        if not s.startswith("set("):
             raise ScheduleParsingError()
-        s = s.lstrip('set(').rstrip(')')
+        s = s.lstrip("set(").rstrip(")")
         self.v = s
 
     def __str__(self):
@@ -102,11 +106,11 @@ class SetSchedule(ConstSchedule):
 
 class LinearSchedule(Schedule):
     def __init__(self, s):
-        if not (s.startswith('lin(') or s.startswith('linspace(')):
+        if not (s.startswith("lin(") or s.startswith("linspace(")):
             raise ScheduleParsingError()
-        s = s.lstrip('lin(').lstrip('linspace(').rstrip(')')
+        s = s.lstrip("lin(").lstrip("linspace(").rstrip(")")
         try:
-            dur, start, stop = [x.strip() for x in s.split(',')]
+            dur, start, stop = [x.strip() for x in s.split(",")]
             self.start = float(start)
             self.stop = float(stop)
             self.dur = self.int_or_float(dur)
@@ -133,11 +137,11 @@ class LinearSchedule(Schedule):
 
 class SwitchSchedule(Schedule):
     def __init__(self, s):
-        if not (s.startswith('to(') or s.startswith('switch(')):
+        if not (s.startswith("to(") or s.startswith("switch(")):
             raise ScheduleParsingError()
-        s = s.lstrip('to(').lstrip('switch(').rstrip(')')
+        s = s.lstrip("to(").lstrip("switch(").rstrip(")")
         try:
-            dur, start, target = [x.strip() for x in s.split(':')]
+            dur, start, target = [x.strip() for x in s.split(":")]
             self.dur = self.int_or_float(dur)
             self.target = self.build(target)
             self.start = self.build(start)

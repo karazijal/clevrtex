@@ -7,6 +7,7 @@ from ool.picture.models.thirdparty.space.model import Space
 
 from oolexp import OOLLayeredBoxExp
 
+
 class MultipleOptimizer(torch.optim.Optimizer):
     def __init__(self, *optimisers):
         self.opts = optimisers
@@ -18,9 +19,9 @@ class MultipleOptimizer(torch.optim.Optimizer):
 
     def __getstate__(self):
         return {
-            'defaults': self.defaults,
-            'state': self.state,
-            'param_groups': self.param_groups,
+            "defaults": self.defaults,
+            "state": self.state,
+            "param_groups": self.param_groups,
         }
 
     def __setstate__(self, state):
@@ -30,14 +31,10 @@ class MultipleOptimizer(torch.optim.Optimizer):
         return f"Multi:{' '.join(str(opt) for opt in self.opts)}"
 
     def state_dict(self):
-        return {
-            'opts': [
-                opt.state_dict() for opt in self.opts
-            ]
-        }
+        return {"opts": [opt.state_dict() for opt in self.opts]}
 
     def load_state_dict(self, state_dict):
-        for opt, sd in zip(self.opts, state_dict['opt']):
+        for opt, sd in zip(self.opts, state_dict["opt"]):
             opt.load_state_dict(sd)
 
     def zero_grad(self, set_to_none: bool = False):
@@ -53,18 +50,19 @@ class MultipleOptimizer(torch.optim.Optimizer):
 
 
 class LitSPACE(OOLLayeredBoxExp):
-    def __init__(self,
-                 tag='test',
-                 seed=None,
-                 data='clevr-crop-(128, 128)',
-                 batch_size=16,
-                 grad_clip=1.0,
-                 # learning_rate=1e-4,
-                 max_steps=160000,
-                 fg_std = 0.15,
-                 bg_std = 0.15,
-                 ):
-        super(LitSPACE, self).__init__(seed, 'mse', 'min')
+    def __init__(
+        self,
+        tag="test",
+        seed=None,
+        data="clevr-crop-(128, 128)",
+        batch_size=16,
+        grad_clip=1.0,
+        # learning_rate=1e-4,
+        max_steps=160000,
+        fg_std=0.15,
+        bg_std=0.15,
+    ):
+        super(LitSPACE, self).__init__(seed, "mse", "min")
         self.save_hyperparameters()
         spc.arch.fg_sigma = fg_std
         spc.arch.bg_sigma = bg_std
@@ -75,7 +73,7 @@ class LitSPACE(OOLLayeredBoxExp):
         img, *other = batch
         output = self.model(img, self.trainer.global_step)
         self.maybe_log_training_outputs(output)
-        return output['loss']
+        return output["loss"]
 
     def configure_optimizers(self):
         adam = torch.optim.Adam(list(self.model.bg_module.parameters()), lr=1e-3)
@@ -86,13 +84,13 @@ class LitSPACE(OOLLayeredBoxExp):
     #     return dict(accumulate_grad_batches=3)
 
     def validation_step(self, batch, batch_idx, dataloader_idx=None):
-        prefix = '' if dataloader_idx is None else f"v{dataloader_idx}/"
+        prefix = "" if dataloader_idx is None else f"v{dataloader_idx}/"
         batch = self.accelated_batch_postprocessing(batch)
         img, *other = batch
         output = self.model(img, self.trainer.global_step)
         self.maybe_log_validation_outputs(batch, batch_idx, output, prefix)
 
 
-if __name__ == '__main__':
-    print(' '.join(sys.argv))
+if __name__ == "__main__":
+    print(" ".join(sys.argv))
     LitSPACE.parse_args_and_execute()

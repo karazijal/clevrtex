@@ -6,6 +6,7 @@ import torchvision as tv
 
 class InvSTN(nn.Module):
     """Inverts the extraction theta (as opposed to placement)"""
+
     def __init__(self, img_size=(1, 50, 50), patch_size=(1, 20, 20)):
         super().__init__()
         self.img_size = img_size
@@ -17,8 +18,12 @@ class InvSTN(nn.Module):
         device = z_where.device
         if z_where.size(1) == 3:
             n = z_where.size(0)
-            expansion_indices = torch.LongTensor([1, 0, 2, 0, 1, 3]).to(device)  # 0-dim is batch
-            out = torch.cat((torch.zeros([1, 1], device=device).expand(n, 1), z_where), 1)
+            expansion_indices = torch.LongTensor([1, 0, 2, 0, 1, 3]).to(
+                device
+            )  # 0-dim is batch
+            out = torch.cat(
+                (torch.zeros([1, 1], device=device).expand(n, 1), z_where), 1
+            )
             return torch.index_select(out, 1, expansion_indices).view(n, 2, 3)
         return z_where  # Assume it was alrady transformed
 
@@ -40,9 +45,11 @@ class InvSTN(nn.Module):
         n = z_where.size(0)
         device = z_where.device
         # Return [s,x,y] -> [1/s,-x/s,-y/s]
-        mask = torch.tensor([0., 1., 1.], device=device).expand(n, -1)
+        mask = torch.tensor([0.0, 1.0, 1.0], device=device).expand(n, -1)
         # [s,x,y] -> [1, -x, -y]
-        inv_z_where = torch.tensor([1., 0., 0.], device=device).expand(n, -1) - mask * z_where
+        inv_z_where = (
+            torch.tensor([1.0, 0.0, 0.0], device=device).expand(n, -1) - mask * z_where
+        )
         # [1, -x, -y] -> [1/s,-x/s,-y/s]
         inv_z_where /= z_where[:, 0:1]
         return inv_z_where
@@ -102,9 +109,12 @@ class STN:
         n = z_where.size(0)
         device = z_where.device
         # Return [sx,sy,x,y] -> [1/sx,1/sy,-x/sx,-y/sy]
-        mask = torch.tensor([0., 0., 1., 1.], device=device).expand(n, -1)
+        mask = torch.tensor([0.0, 0.0, 1.0, 1.0], device=device).expand(n, -1)
         # [sx,sy,x,y] -> [1, 1, -x, -y]
-        inv_z_where = torch.tensor([1., 1., 0., 0.], device=device).expand(n, -1) - mask * z_where
+        inv_z_where = (
+            torch.tensor([1.0, 1.0, 0.0, 0.0], device=device).expand(n, -1)
+            - mask * z_where
+        )
         # [1, 1, -x, -y] -> [1/s,-x/s,-y/s]
         inv_z_where = inv_z_where / torch.hstack([z_where[:, :2]] * 2)
         return inv_z_where
@@ -115,8 +125,12 @@ class STN:
         device = z_where.device
         if z_where.size(1) == 4:
             n = z_where.size(0)
-            expansion_indices = torch.LongTensor([1, 0, 3, 0, 2, 4]).to(device)  # 0-dim is batch
-            out = torch.cat((torch.zeros([1, 1], device=device).expand(n, 1), z_where), 1)
+            expansion_indices = torch.LongTensor([1, 0, 3, 0, 2, 4]).to(
+                device
+            )  # 0-dim is batch
+            out = torch.cat(
+                (torch.zeros([1, 1], device=device).expand(n, 1), z_where), 1
+            )
             return torch.index_select(out, 1, expansion_indices).view(n, 2, 3)
         return z_where  # Assume it was alrady transformed
 

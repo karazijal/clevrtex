@@ -21,14 +21,14 @@ class VizCallback(cb.TensorBoardImageDisplayCallback):
         image = batch[0].detach()
         image = F.pad(image, (1, 1, 1, 1), value=0)
 
-        out = fwd_data[f"out{self.suffix}"].cpu().detach()[:,:3]
+        out = fwd_data[f"out{self.suffix}"].cpu().detach()[:, :3]
         out = F.pad(out, (1, 1, 1, 1), value=0)
 
-        diff = (image-out).abs() * 4
+        diff = (image - out).abs() * 4
 
         layers = [image, out, diff]
         for i in range(fwd_data[f"layers{self.suffix}"].shape[1]):
-            layer = fwd_data[f"layers{self.suffix}"][:,i].cpu().detach()
+            layer = fwd_data[f"layers{self.suffix}"][:, i].cpu().detach()
             rgb, a = th.split(layer, [3, 1], dim=2)
 
             psz = layer.shape[-1]
@@ -38,7 +38,7 @@ class VizCallback(cb.TensorBoardImageDisplayCallback):
             out = out.flatten(2, 3).flatten(3, 4)
 
             for i in range(4):
-                out = out*(1-a[:,i]) + rgb[:,i]*a[:,i]
+                out = out * (1 - a[:, i]) + rgb[:, i] * a[:, i]
             layers.append(F.pad(out, (1, 1, 1, 1), value=0))
 
         viz = th.cat(layers, 3)
@@ -50,8 +50,8 @@ class DictCallback(cb.TensorBoardImageDisplayCallback):
         return "dictionary"
 
     def visualized_image(self, batch, fwd_data):
-        dictionary = fwd_data['dict'].cpu()
-        dict_codes = fwd_data['dict_codes'].cpu().detach()
+        dictionary = fwd_data["dict"].cpu()
+        dict_codes = fwd_data["dict_codes"].cpu().detach()
 
         tsne = TSNE(n_components=1, metric="cosine", square_distances=True)
         xf_codes = tsne.fit_transform(dict_codes).squeeze()
@@ -67,7 +67,7 @@ class DictCallback(cb.TensorBoardImageDisplayCallback):
         bg[:, :, 1::2, :, 1::2] = 0.8
         bg = bg.flatten(2, 3).flatten(3, 4)
 
-        return th.clamp(bg*(1-alpha) + color*alpha, 0, 1)
+        return th.clamp(bg * (1 - alpha) + color * alpha, 0, 1)
 
 
 class BackgroundCallback(cb.TensorBoardImageDisplayCallback):
@@ -75,7 +75,7 @@ class BackgroundCallback(cb.TensorBoardImageDisplayCallback):
         return "background"
 
     def visualized_image(self, batch, fwd_data):
-        bg = fwd_data['background'].cpu()
+        bg = fwd_data["background"].cpu()
         return bg
 
 
@@ -90,10 +90,10 @@ class InterfaceProgCallback(cb.Callback):
 
     def batch_start(self, batch_idx, batch_data):
         self.batch = batch_idx
-        self.model_interface.global_step = self.epoch * self.model_interface.data_len + batch_idx
+        self.model_interface.global_step = (
+            self.epoch * self.model_interface.data_len + batch_idx
+        )
         self.model_interface.batch_idx = batch_idx
 
     def val_batch_start(self, batch_idx, batch):
         self.model_interface.batch_idx = batch_idx
-
-

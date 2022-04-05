@@ -7,7 +7,7 @@ from torchvision import datasets
 class PascalVOC(torch.utils.data.Dataset):
     shape = (3, 500, 375)
 
-    def __init__(self, path, split='train'):
+    def __init__(self, path, split="train"):
         self.d = datasets.voc.VOCSegmentation(path, download=True, image_set=split)
         self.t = torchvision.transforms.ToTensor()
 

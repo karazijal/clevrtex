@@ -18,4 +18,4 @@ class MLP(nn.Module):
         for l in self.layers[:-1]:
             x = torch.relu(l(x))
         x = self.layers[-1](x)
-        return x[:, :self.out_f], torch.relu(x[:, self.out_f:])
+        return x[:, : self.out_f], torch.relu(x[:, self.out_f :])

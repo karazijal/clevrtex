@@ -5,9 +5,10 @@ from datetime import datetime
 
 from ool.env import get_expe_path, is_slurm, is_external_user, unique_id, print_prefix
 
+
 class RunningMean:
     def __init__(self):
-        self.v = 0.
+        self.v = 0.0
         self.n = 0
 
     def update(self, v, n=1):
@@ -20,9 +21,11 @@ class RunningMean:
     def __str__(self):
         return str(self.value())
 
+
 def set_owner(path):
     if is_external_user() and is_slurm():
         pass
+
 
 def exp_log_dir(name, no_unique=False, dir=None, dist_safe=False):
     prefix = dir or get_expe_path()
@@ -59,7 +62,7 @@ def watermark_source(dst_base, source_dir=None):
     p = Path(source_dir or Path.cwd())
     d = f"code_{datetime.now().strftime('%y%m%d_%H%M%S')}.tar.gz"
     dst = Path(dst_base).expanduser() / d
-    with tarfile.open(dst, 'w:gz') as tar:
+    with tarfile.open(dst, "w:gz") as tar:
         tar.add(p, arcname=p.name)
     set_owner(dst)
     return dst

@@ -8,17 +8,26 @@ class GaussianSmoothing(th.nn.Module):
     def __init__(self, channels, padding):
         super().__init__()
         self.padding = padding
-        kernel = th.Tensor([[[1, 4, 6, 4, 1],
-                             [4, 16, 24, 16, 4],
-                             [6, 24, 36, 24, 6],
-                             [4, 16, 24, 16, 4],
-                             [1, 4, 6, 4, 1]]]).float() / 256.0
+        kernel = (
+            th.Tensor(
+                [
+                    [
+                        [1, 4, 6, 4, 1],
+                        [4, 16, 24, 16, 4],
+                        [6, 24, 36, 24, 6],
+                        [4, 16, 24, 16, 4],
+                        [1, 4, 6, 4, 1],
+                    ]
+                ]
+            ).float()
+            / 256.0
+        )
         kernel = kernel.expand(channels, 1, 5, 5)
         self.kernel = th.nn.Parameter(kernel, requires_grad=False)
         self.groups = channels
 
     def forward(self, input):
-        input = F.pad(input, [self.padding]*4, mode='reflect')
+        input = F.pad(input, [self.padding] * 4, mode="reflect")
         return F.conv2d(input, self.kernel, groups=self.groups)
 
 
@@ -36,11 +45,11 @@ class PyramidLoss(th.nn.Module):
         n_levels = int(np.log2(canvas_size))
         for idx in range(n_levels):
             if self.base_loss == "l1":
-                loss += th.abs(pred-target).sum(1).mean()
+                loss += th.abs(pred - target).sum(1).mean()
             else:
-                loss += (pred-target).pow(2).sum(1).mean()
+                loss += (pred - target).pow(2).sum(1).mean()
 
-            if idx < n_levels-1:  # prepare for next step
+            if idx < n_levels - 1:  # prepare for next step
                 pred = self.smoothing(pred)
                 target = self.smoothing(target)
                 pred = F.avg_pool2d(pred, 2)
