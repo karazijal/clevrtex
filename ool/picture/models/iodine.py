@@ -30,7 +30,7 @@ def truncated_normal_initializer(shape, mean, stddev):
     return torch.from_numpy(values).float()
 
 
-def init_weights(net, init_type='normal', init_gain=0.02):
+def init_weights(net, init_type="normal", init_gain=0.02):
     """Initialize network weights.
 
     Modified from: https://github.com/baudm/MONet-pytorch/blob/master/models/networks.py
@@ -46,22 +46,28 @@ def init_weights(net, init_type='normal', init_gain=0.02):
 
     def init_func(m):  # define the initialization function
         classname = m.__class__.__name__
-        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
-            if init_type == 'normal':
+        if hasattr(m, "weight") and (
+            classname.find("Conv") != -1 or classname.find("Linear") != -1
+        ):
+            if init_type == "normal":
                 init.normal_(m.weight.data, 0.0, init_gain)
-            elif init_type == 'xavier':
+            elif init_type == "xavier":
                 init.xavier_normal_(m.weight.data, gain=init_gain)
-            elif init_type == 'kaiming':
-                init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
-            elif init_type == 'orthogonal':
+            elif init_type == "kaiming":
+                init.kaiming_normal_(m.weight.data, a=0, mode="fan_in")
+            elif init_type == "orthogonal":
                 init.orthogonal_(m.weight.data, gain=init_gain)
-            elif init_type == 'truncated_normal':
-                m.weight.data = truncated_normal_initializer(m.weight.shape, 0.0, stddev=init_gain)
+            elif init_type == "truncated_normal":
+                m.weight.data = truncated_normal_initializer(
+                    m.weight.shape, 0.0, stddev=init_gain
+                )
             else:
-                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
-            if hasattr(m, 'bias') and m.bias is not None:
+                raise NotImplementedError(
+                    "initialization method [%s] is not implemented" % init_type
+                )
+            if hasattr(m, "bias") and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
-        elif classname.find('BatchNorm2d') != -1:
+        elif classname.find("BatchNorm2d") != -1:
             init.normal_(m.weight.data, 1.0, init_gain)
             init.constant_(m.bias.data, 0.0)
 
@@ -70,19 +76,24 @@ def init_weights(net, init_type='normal', init_gain=0.02):
 
 def _softplus_to_std(softplus):
     softplus = torch.min(softplus, torch.ones_like(softplus) * 80)
-    return torch.sqrt(torch.log(1. + softplus.exp()) + 1e-5)
+    return torch.sqrt(torch.log(1.0 + softplus.exp()) + 1e-5)
 
 
 def normal(loc, pre_softplus_var):
     return torch.distributions.independent.Independent(
-        torch.distributions.normal.Normal(loc, torch.sqrt(F.softplus(pre_softplus_var))), 1)
+        torch.distributions.normal.Normal(
+            loc, torch.sqrt(F.softplus(pre_softplus_var))
+        ),
+        1,
+    )
 
 
 def unit_normal(shape, device):
     loc = torch.zeros(shape).to(device)
     scale = torch.ones(shape).to(device)
     return torch.distributions.independent.Independent(
-        torch.distributions.normal.Normal(loc, scale), 1)
+        torch.distributions.normal.Normal(loc, scale), 1
+    )
 
 
 def gmm_loglikelihood(x, x_loc, log_var, mask_logprobs):
@@ -94,15 +105,13 @@ def gmm_loglikelihood(x, x_loc, log_var, mask_logprobs):
     # log N(x; x_loc, log_var): [N, K, C, H, W]
     normal_ll = -0.5 * log_var - 0.5 * (sq_err / torch.exp(log_var))
     # [N, K, C, H, W]
-    log_p_k = (mask_logprobs + normal_ll)
+    log_p_k = mask_logprobs + normal_ll
     # logsumexp over slots [N, C, H, W]
     log_p = torch.logsumexp(log_p_k, dim=1).sum(1, keepdim=True)
     # [batch_size]
     nll = -torch.sum(log_p, dim=[1, 2, 3])
 
-    return nll, {'log_p_k': log_p_k, 'normal_ll': normal_ll, 'log_p': log_p}
-
-
+    return nll, {"log_p_k": log_p_k, "normal_ll": normal_ll, "log_p": log_p}
 
 
 def gaussian_loglikelihood(x_t, x_loc, log_var):
@@ -143,14 +152,16 @@ def cfg():
 
 
 class RefinementNetwork(nn.Module):
-    def __init__(self,
-                 input_size,
-                 z_size=64,
-                 refinenet_channels_in=17, # should be 17!!!
-                 conv_channels=64,
-                 lstm_dim=256,
-                 k=3,
-                 stride=2):
+    def __init__(
+        self,
+        input_size,
+        z_size=64,
+        refinenet_channels_in=17,  # should be 17!!!
+        conv_channels=64,
+        lstm_dim=256,
+        k=3,
+        stride=2,
+    ):
         super(RefinementNetwork, self).__init__()
         self.input_size = input_size
         self.z_size = z_size
@@ -163,7 +174,7 @@ class RefinementNetwork(nn.Module):
             nn.ELU(True),
             nn.Conv2d(conv_channels, conv_channels, k, stride, k // 2),
             nn.ELU(True),
-            nn.AdaptiveAvgPool2d((1,1)),
+            nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
             nn.Linear(conv_channels, lstm_dim),
             nn.ELU(True),
@@ -180,7 +191,7 @@ class RefinementNetwork(nn.Module):
         self.lstm = nn.LSTM(lstm_dim + 4 * self.z_size, lstm_dim)
         # self.loc = nn.Linear(lstm_dim, z_size)
         # self.softplus = nn.Linear(lstm_dim, z_size)
-        self.ref_head = nn.Linear(lstm_dim, 2*z_size)
+        self.ref_head = nn.Linear(lstm_dim, 2 * z_size)
 
     def forward(self, img_inputs, vec_inputs, h, c):
         """
@@ -211,23 +222,19 @@ class SpatialBroadcastDecoder(nn.Module):
     modify it (e.g., uses 3x3 conv instead of 5x5).
     """
 
-    def __init__(self,
-                 input_size,
-                 z_size=64,
-                 conv_channels=64,
-                 k=3):
+    def __init__(self, input_size, z_size=64, conv_channels=64, k=3):
         super(SpatialBroadcastDecoder, self).__init__()
         self.h, self.w = input_size[1], input_size[2]
         self.decode = nn.Sequential(
-            nn.Conv2d(z_size + 2, conv_channels, k, 1, padding=k // 2 -1),
+            nn.Conv2d(z_size + 2, conv_channels, k, 1, padding=k // 2 - 1),
             nn.ELU(True),
-            nn.Conv2d(conv_channels, conv_channels, k, 1, padding=k // 2 -1),
+            nn.Conv2d(conv_channels, conv_channels, k, 1, padding=k // 2 - 1),
             nn.ELU(True),
-            nn.Conv2d(conv_channels, conv_channels, k, 1, padding=k // 2 -1),
+            nn.Conv2d(conv_channels, conv_channels, k, 1, padding=k // 2 - 1),
             nn.ELU(True),
-            nn.Conv2d(conv_channels, conv_channels, k, 1, padding=k // 2 -1),
+            nn.Conv2d(conv_channels, conv_channels, k, 1, padding=k // 2 - 1),
             nn.ELU(True),
-            nn.Conv2d(conv_channels, 4, 1, 1)
+            nn.Conv2d(conv_channels, 4, 1, 1),
         )
 
     @staticmethod
@@ -257,19 +264,21 @@ class SpatialBroadcastDecoder(nn.Module):
 
 
 class IODINE(nn.Module):
-    shortname='iodine'
-    def __init__(self,
-                 batch_size,
-                 input_size,
-                 z_size=64,
-                 K=7,
-                 inference_iters=5,
-                 log_scale=math.log(0.10),
-                 kl_beta=1,
-                 lstm_dim=256,
-                 conv_channels=128,
-                 refinenet_channels_in=17, # should be 17
-                 ):
+    shortname = "iodine"
+
+    def __init__(
+        self,
+        batch_size,
+        input_size,
+        z_size=64,
+        K=7,
+        inference_iters=5,
+        log_scale=math.log(0.10),
+        kl_beta=1,
+        lstm_dim=256,
+        conv_channels=128,
+        refinenet_channels_in=17,  # should be 17
+    ):
         super(IODINE, self).__init__()
 
         self.z_size = z_size
@@ -278,34 +287,52 @@ class IODINE(nn.Module):
         self.inference_iters = inference_iters
         self.batch_size = batch_size
         self.kl_beta = kl_beta
-        self.register_buffer('gmm_log_scale', (log_scale * torch.ones(K)).view(1, K, 1, 1, 1))
+        self.register_buffer(
+            "gmm_log_scale", (log_scale * torch.ones(K)).view(1, K, 1, 1, 1)
+        )
 
-        self.image_decoder = SpatialBroadcastDecoder(input_size, z_size, conv_channels, k=3) # k HERE IS filter size
-        self.refine_net = RefinementNetwork(input_size, z_size, refinenet_channels_in, conv_channels, lstm_dim)
+        self.image_decoder = SpatialBroadcastDecoder(
+            input_size, z_size, conv_channels, k=3
+        )  # k HERE IS filter size
+        self.refine_net = RefinementNetwork(
+            input_size, z_size, refinenet_channels_in, conv_channels, lstm_dim
+        )
 
-        init_weights(self.image_decoder, 'xavier')
-        init_weights(self.refine_net, 'xavier')
+        init_weights(self.image_decoder, "xavier")
+        init_weights(self.refine_net, "xavier")
 
         # learnable initial posterior distribution
         # loc = 0, variance = 1
-        self.lamda_0 = nn.Parameter(torch.cat([torch.zeros(1, self.z_size), torch.ones(1, self.z_size)], 1))
+        self.lamda_0 = nn.Parameter(
+            torch.cat([torch.zeros(1, self.z_size), torch.ones(1, self.z_size)], 1)
+        )
 
         # layernorms for iterative inference input
         affine = True  # Paper trains these parameters
         n = self.input_size[1]
-        self.layer_norms = torch.nn.ModuleList([
-            nn.LayerNorm((1, n, n), elementwise_affine=affine),
-            nn.LayerNorm((1, n, n), elementwise_affine=affine),
-            nn.LayerNorm((3, n, n), elementwise_affine=affine),
-            nn.LayerNorm((1, n, n), elementwise_affine=affine),
-            nn.LayerNorm((self.z_size,), elementwise_affine=affine),  # layer_norm_mean
-            nn.LayerNorm((self.z_size,), elementwise_affine=affine)  # layer_norm_log_scale
-        ])
+        self.layer_norms = torch.nn.ModuleList(
+            [
+                nn.LayerNorm((1, n, n), elementwise_affine=affine),
+                nn.LayerNorm((1, n, n), elementwise_affine=affine),
+                nn.LayerNorm((3, n, n), elementwise_affine=affine),
+                nn.LayerNorm((1, n, n), elementwise_affine=affine),
+                nn.LayerNorm(
+                    (self.z_size,), elementwise_affine=affine
+                ),  # layer_norm_mean
+                nn.LayerNorm(
+                    (self.z_size,), elementwise_affine=affine
+                ),  # layer_norm_log_scale
+            ]
+        )
 
-        self.h_0, self.c_0 = (torch.zeros(1, self.batch_size * self.K, lstm_dim),
-                              torch.zeros(1, self.batch_size * self.K, lstm_dim))
+        self.h_0, self.c_0 = (
+            torch.zeros(1, self.batch_size * self.K, lstm_dim),
+            torch.zeros(1, self.batch_size * self.K, lstm_dim),
+        )
 
-    def refinenet_inputs(self, image, means, masks, mask_logits, log_p, normal_ll, lamda, loss):
+    def refinenet_inputs(
+        self, image, means, masks, mask_logits, log_p, normal_ll, lamda, loss
+    ):
         N, K, C, H, W = image.shape
         # non-gradient inputs
         # 1. image [N, K, C, H, W]
@@ -316,23 +343,31 @@ class IODINE(nn.Module):
 
         # print(image.shape, means.shape, masks.shape, mask_logits.shape, log_p.shape, normal_ll.shape, lamda.shape, loss.shape)
         mask_ll = normal_ll.sum(dim=2, keepdim=True)
-        mask_posterior = (mask_ll - torch.logsumexp(mask_ll, dim=1, keepdim=True))  # logscale
+        mask_posterior = mask_ll - torch.logsumexp(
+            mask_ll, dim=1, keepdim=True
+        )  # logscale
         # 6. pixelwise likelihood [N, K, 1, H, W]
         # log_p_k = torch.logsumexp(log_p_k, dim=1).sum(1)
         log_p_k = log_p.view(-1, 1, 1, H, W).expand(-1, K, -1, -1, -1)
         # 7. LOO likelihood
         # loo_px_l = torch.log(1e-6 + (log_p_k.exp()+1e-6 - (masks + normal_ll.unsqueeze(2).exp())+1e-6)) # [N,K,1,H,W]
-        #since counterfactuals have stop grad:
+        # since counterfactuals have stop grad:
         with torch.no_grad():
             counterfactuals = []
             for i in range(K):
-                pll = torch.cat((normal_ll[:, :i], normal_ll[:, i+1:]), dim=1)
-                msk = torch.cat((mask_logits[:, :i], mask_logits[:, i+1:]), dim=1)
-                counterfactuals.append(torch.logsumexp(pll + torch.log_softmax(msk, dim=1), dim=1).sum(1, keepdim=True))
+                pll = torch.cat((normal_ll[:, :i], normal_ll[:, i + 1 :]), dim=1)
+                msk = torch.cat((mask_logits[:, :i], mask_logits[:, i + 1 :]), dim=1)
+                counterfactuals.append(
+                    torch.logsumexp(pll + torch.log_softmax(msk, dim=1), dim=1).sum(
+                        1, keepdim=True
+                    )
+                )
             counterfactuals = torch.stack(counterfactuals, dim=1).view(N, K, 1, H, W)
         # 8. Coordinate channel
-        x_mesh, y_mesh = torch.meshgrid(torch.linspace(-1, 1, H, device=image.device),
-                                  torch.linspace(-1, 1, W, device=image.device))
+        x_mesh, y_mesh = torch.meshgrid(
+            torch.linspace(-1, 1, H, device=image.device),
+            torch.linspace(-1, 1, W, device=image.device),
+        )
         # Expand from (h, w) -> (n, k, 1, h, w)
         x_mesh = x_mesh.expand(N, K, 1, -1, -1)
         y_mesh = y_mesh.expand(N, K, 1, -1, -1)
@@ -343,8 +378,9 @@ class IODINE(nn.Module):
         # [N, K, 1, H, W]
         # 11. \partial L/ \partial lamda
         # [N*K, 2 * self.z_size]
-        d_means, d_masks, d_lamda = \
-            torch.autograd.grad(loss, [means, masks, lamda], retain_graph=self.training, only_inputs=True)
+        d_means, d_masks, d_lamda = torch.autograd.grad(
+            loss, [means, masks, lamda], retain_graph=self.training, only_inputs=True
+        )
 
         d_loc_z, d_sp_z = d_lamda.chunk(2, dim=1)
         # d_loc_z, d_sp_z = d_loc_z.contiguous(), d_sp_z.contiguous()
@@ -363,21 +399,23 @@ class IODINE(nn.Module):
         d_sp_z = self.layer_norms[5](d_sp_z.detach())
 
         # concat image-size and vector inputs
-        image_inputs = torch.cat([
-            image,  # 3
-            means,  # 3
-            masks,  # 1
-            mask_logits, # code seems to provide probs, paper says logits # 1
-            mask_posterior, # in code not in logscale; is here 1
-            d_means, # 3
-            d_masks, # 1
-            log_p_k, # 1
-            loo_px_l, # 1
-            x_mesh, # 1
-            y_mesh # 1
-        ], 2)
-        vec_inputs = torch.cat([
-            lamda, d_loc_z, d_sp_z], 1)
+        image_inputs = torch.cat(
+            [
+                image,  # 3
+                means,  # 3
+                masks,  # 1
+                mask_logits,  # code seems to provide probs, paper says logits # 1
+                mask_posterior,  # in code not in logscale; is here 1
+                d_means,  # 3
+                d_masks,  # 1
+                log_p_k,  # 1
+                loo_px_l,  # 1
+                x_mesh,  # 1
+                y_mesh,  # 1
+            ],
+            2,
+        )
+        vec_inputs = torch.cat([lamda, d_loc_z, d_sp_z], 1)
 
         return image_inputs.view(N * K, -1, H, W), vec_inputs
 
@@ -391,9 +429,11 @@ class IODINE(nn.Module):
 
         # expand lambda_0
         lamda = self.lamda_0.repeat(self.batch_size * self.K, 1)  # [N*K, 2*z_size]
-        p_z = unit_normal(shape=[self.batch_size * self.K, self.z_size], device=x.device)
+        p_z = unit_normal(
+            shape=[self.batch_size * self.K, self.z_size], device=x.device
+        )
 
-        total_loss = 0.
+        total_loss = 0.0
         losses = []
         x_means = []
         masks = []
@@ -418,7 +458,9 @@ class IODINE(nn.Module):
 
             # NLL [batch_size, 1, H, W]
             # log_var = (2 * self.gmm_log_scale)
-            nll, ll_outs = gmm_loglikelihood(x, x_loc, 2 * self.gmm_log_scale, mask_logprobs)
+            nll, ll_outs = gmm_loglikelihood(
+                x, x_loc, 2 * self.gmm_log_scale, mask_logprobs
+            )
 
             # KL div
             kl_div = torch.distributions.kl.kl_divergence(q_z, p_z)
@@ -427,7 +469,7 @@ class IODINE(nn.Module):
             loss = nll + self.kl_beta * kl_div
             loss = torch.mean(loss)
 
-            scaled_loss = ((i + 1.) / self.inference_iters) * loss
+            scaled_loss = ((i + 1.0) / self.inference_iters) * loss
             losses += [scaled_loss]
             total_loss += scaled_loss
 
@@ -442,22 +484,25 @@ class IODINE(nn.Module):
             # compute refine inputs
             x_ = x.repeat(self.K, 1, 1, 1).view(self.batch_size, self.K, C, H, W)
 
-
-            img_inps, vec_inps = self.refinenet_inputs(x_, x_loc, mask_logprobs, mask_logits,
-                                                       ll_outs['log_p'], ll_outs['normal_ll'], lamda, loss)
+            img_inps, vec_inps = self.refinenet_inputs(
+                x_,
+                x_loc,
+                mask_logprobs,
+                mask_logits,
+                ll_outs["log_p"],
+                ll_outs["normal_ll"],
+                lamda,
+                loss,
+            )
 
             delta, (h, c) = self.refine_net(img_inps, vec_inps, h, c)
             lamda = lamda + delta
 
-
         return {
-            'canvas': (x_loc * mask_logprobs.exp()).sum(dim=1),
-            'loss': total_loss,
-            'recon_loss': torch.mean(nll),
-            'kl': torch.mean(kl_div),
-            'layers': {
-                'patch': x_loc,
-                'mask': mask_logprobs.exp()
-            },
-            'z': z
+            "canvas": (x_loc * mask_logprobs.exp()).sum(dim=1),
+            "loss": total_loss,
+            "recon_loss": torch.mean(nll),
+            "kl": torch.mean(kl_div),
+            "layers": {"patch": x_loc, "mask": mask_logprobs.exp()},
+            "z": z,
         }

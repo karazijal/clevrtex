@@ -46,14 +46,14 @@ class ComponentEncoder(nn.Sequential):
             nn.Flatten(),
             nn.Linear(h * w * 64, 256),
             nn.ReLU(),
-            nn.Linear(256, 2 * z_dim)
+            nn.Linear(256, 2 * z_dim),
         )
         self.z_dim = z_dim
 
     def forward(self, img, mask):
         x = torch.cat([img, mask], dim=1)
         x = super(ComponentEncoder, self).forward(x)
-        mu, logstd = x[:, :self.z_dim], x[:, self.z_dim:]
+        mu, logstd = x[:, : self.z_dim], x[:, self.z_dim :]
         return mu, logstd.exp()
 
 
@@ -79,11 +79,14 @@ class ComponentDecoder(nn.Sequential):
         x = x.view(x.size(0), -1, 1, 1).repeat(1, 1, h, w)
         hs = torch.linspace(-1, 1, h, device=x.device, dtype=x.dtype)
         ws = torch.linspace(-1, 1, w, device=x.device, dtype=x.dtype)
-        c = torch.stack(torch.meshgrid(hs, ws)).view(1, 2, h, w).repeat(
-            x.size(0), 1, 1, 1)
+        c = (
+            torch.stack(torch.meshgrid(hs, ws))
+            .view(1, 2, h, w)
+            .repeat(x.size(0), 1, 1, 1)
+        )
         x = torch.cat([x, c], dim=1)
         x = super(ComponentDecoder, self).forward(x)
-        img = torch.sigmoid(x[:, :self.out_shape[0]])
+        img = torch.sigmoid(x[:, : self.out_shape[0]])
         msk = x[:, -1:]
         return img, msk
 
@@ -98,10 +101,18 @@ class AttentionBlock(nn.Module):
     def comb(self, x, y):
         if x.shape == y.shape:
             return torch.cat([x, y], dim=1)
-        return torch.cat([
-            F.pad(x, (0, y.size(-1) - x.size(-1), 0, y.size(-2) - x.size(-2)), 'constant', 0),
-            y
-        ], dim=1)
+        return torch.cat(
+            [
+                F.pad(
+                    x,
+                    (0, y.size(-1) - x.size(-1), 0, y.size(-2) - x.size(-2)),
+                    "constant",
+                    0,
+                ),
+                y,
+            ],
+            dim=1,
+        )
 
     def forward(self, *inputs):
         downsampling = len(inputs) == 1
@@ -110,7 +121,9 @@ class AttentionBlock(nn.Module):
         x = self.norm(x)
         x = skip = F.relu(x)
         if self._resize:
-            x = F.interpolate(skip, scale_factor=0.5 if downsampling else 2., mode='nearest')
+            x = F.interpolate(
+                skip, scale_factor=0.5 if downsampling else 2.0, mode="nearest"
+            )
         return (x, skip) if downsampling else x
 
 
@@ -118,10 +131,10 @@ class Attention(nn.Module):
     def __init__(self, numb, in_shape, ngf=64):
         super(Attention, self).__init__()
         c, h, w = in_shape
-        x = torch.zeros(1, c+1, h, w)
-        self.downblocks = nn.ModuleList([
-            AttentionBlock(c + 1, ngf, resize=True)  # Fist
-        ])
+        x = torch.zeros(1, c + 1, h, w)
+        self.downblocks = nn.ModuleList(
+            [AttentionBlock(c + 1, ngf, resize=True)]  # Fist
+        )
         x = self.downblocks[-1](x)[0]
         # print(x.shape)
         upblocks = [AttentionBlock(2 * ngf, ngf, resize=False)]  # Last
@@ -132,15 +145,25 @@ class Attention(nn.Module):
             x = self.downblocks[-1](x)[0]
             # print(x.shape)
             upblocks.append(
-                AttentionBlock(2 * ngf * min(2 ** i, 8), ngf * min(2 ** (i - 1), 8), resize=True)
+                AttentionBlock(
+                    2 * ngf * min(2 ** i, 8), ngf * min(2 ** (i - 1), 8), resize=True
+                )
             )
         self.downblocks.append(
-            AttentionBlock(ngf * min(2 ** (numb - 1), 8), ngf * min(2 ** (numb - 1), 8), resize=False)
+            AttentionBlock(
+                ngf * min(2 ** (numb - 1), 8),
+                ngf * min(2 ** (numb - 1), 8),
+                resize=False,
+            )
         )
         x = self.downblocks[-1](x)[0]
         # print(x.shape)
         upblocks.append(
-            AttentionBlock(2 * ngf * min(2 ** (numb - 1), 8), ngf * min(2 ** (numb - 1), 8), resize=True)
+            AttentionBlock(
+                2 * ngf * min(2 ** (numb - 1), 8),
+                ngf * min(2 ** (numb - 1), 8),
+                resize=True,
+            )
         )
         self.upblocks = nn.ModuleList(list(reversed(upblocks)))
         inc = np.product(x.shape)
@@ -170,32 +193,30 @@ class Attention(nn.Module):
             x = l(x, skip)
 
         logits = self.output(x)
-        return F.logsigmoid(logits), F.logsigmoid(-logits)  # log(sigmoid(logits)), log(1-sigmoid(logits))
+        return (
+            F.logsigmoid(logits),
+            F.logsigmoid(-logits),
+        )  # log(sigmoid(logits)), log(1-sigmoid(logits))
 
 
 class MONet(OOLBase):
-    shortname = 'monet'
-    def __init__(self,
-                 n_slots=8,
-                 numb=5,
-                 shape=(1, 50, 50),
-                 z_dim=16,
-                 bg_scl = 0.09,
-                 fg_scl = 0.11
-                 ):
-        super(MONet, self).__init__(
-            pres_dist_name='unused',
-            output_dist='unused',
-            output_hparam=1.0,
+    shortname = "monet"
 
+    def __init__(
+        self, n_slots=8, numb=5, shape=(1, 50, 50), z_dim=16, bg_scl=0.09, fg_scl=0.11
+    ):
+        super(MONet, self).__init__(
+            pres_dist_name="unused",
+            output_dist="unused",
+            output_hparam=1.0,
             n_particles=1,
             z_pres_prior_p=1,
             z_where_prior_loc=[0, 0, 0, 0],
             z_where_prior_scale=[1, 1, 1, 1],
-            z_what_prior_loc=[0.] * z_dim,
-            z_what_prior_scale=[1.] * z_dim,
-            z_depth_prior_loc=0.,
-            z_depth_prior_scale=1.
+            z_what_prior_loc=[0.0] * z_dim,
+            z_what_prior_scale=[1.0] * z_dim,
+            z_depth_prior_loc=0.0,
+            z_depth_prior_scale=1.0,
         )
         self.n = n_slots
         self.shape = shape
@@ -203,8 +224,8 @@ class MONet(OOLBase):
         self.dec = ComponentDecoder(z_dim, shape)
         self.att = Attention(numb, shape)
 
-        self.beta = .5
-        self.gamma = .5
+        self.beta = 0.5
+        self.gamma = 0.5
         self.bg_scl = bg_scl
         self.fg_scl = fg_scl
 
@@ -221,7 +242,7 @@ class MONet(OOLBase):
             rec_loss = torch.zeros(n, self.n, c, h, w, device=x.device, dtype=x.dtype)
 
         for k in range(self.n):
-            if k == self.n-1:
+            if k == self.n - 1:
                 log_m_k = log_s_k
             else:
                 log_alpha_k, log_one_minus_alpha_k = self.att(x, log_s_k)
@@ -238,10 +259,15 @@ class MONet(OOLBase):
             m[:, k] = log_m_k.exp()
 
             if self.training:
-                scl = self.bg_scl if k==0 else self.fg_scl
+                scl = self.bg_scl if k == 0 else self.fg_scl
                 rec_loss[:, k] = log_m_k + dist.Normal(x_til[:, k], scl).log_prob(x)
                 # print('rec loss', rec_loss[:, k].shape)
-                kl += kl_divergence(z_k_post, self.what_prior(z_k_post.batch_shape)).sum(1, keepdims=True) * self.beta
+                kl += (
+                    kl_divergence(z_k_post, self.what_prior(z_k_post.batch_shape)).sum(
+                        1, keepdims=True
+                    )
+                    * self.beta
+                )
 
         m_rec = x_til * m
         canvas = m_rec.sum(1)
@@ -249,25 +275,23 @@ class MONet(OOLBase):
         # print('m_til', m_til.shape)
         # print('m_rec', m_rec.shape)
         r = {
-            'canvas': canvas,
-            'layers': {
-                'patch': x_til,
-                'mask': m,
-                'other_mask': m_til
-            }
+            "canvas": canvas,
+            "layers": {"patch": x_til, "mask": m, "other_mask": m_til},
         }
         if self.training:
-            kl_mask = F.kl_div(m_til, m, reduction='none').sum((1, 2, 3, 4)) * self.gamma
+            kl_mask = (
+                F.kl_div(m_til, m, reduction="none").sum((1, 2, 3, 4)) * self.gamma
+            )
             # print('mask', kl_mask.shape)
-            rec_loss = torch.logsumexp(rec_loss, dim=1).sum((1,2,3))
+            rec_loss = torch.logsumexp(rec_loss, dim=1).sum((1, 2, 3))
             # print('rec', rec_loss.shape)
             loss = -rec_loss + kl.squeeze(1) + kl_mask
             loss = loss.mean()
-            r['loss'] = loss
-            r['rec_loss'] = (-rec_loss).mean()
-            r['kl'] = kl.mean()
-            r['kl_mask'] = kl_mask.mean()
+            r["loss"] = loss
+            r["rec_loss"] = (-rec_loss).mean()
+            r["kl"] = kl.mean()
+            r["kl_mask"] = kl_mask.mean()
         return r
 
     def param_groups(self):
-        return [{'params': self.parameters(), 'lr': 1}]
+        return [{"params": self.parameters(), "lr": 1}]

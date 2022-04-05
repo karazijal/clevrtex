@@ -14,77 +14,68 @@ import torch.nn.functional as F
 from torch.distributions import Normal, kl_divergence, RelaxedBernoulli
 from torch.distributions.utils import broadcast_all
 
-arch = lambda : None
+arch = lambda: None
 arch.__dict__ = {
-    'img_shape': (128, 128),
-
+    "img_shape": (128, 128),
     # Grid size. There will be G*G slots
-    'G': 8,
-
+    "G": 8,
     # Foreground configurations
     # ==== START ====
     # Foreground likelihood sigma
-    'fg_sigma': 0.15,
+    "fg_sigma": 0.15,
     # Size of the glimpse
-    'glimpse_size': 32,
+    "glimpse_size": 32,
     # Encoded image feature channels
-    'img_enc_dim_fg': 128,
+    "img_enc_dim_fg": 128,
     # Latent dimensions
-    'z_pres_dim': 1,
-    'z_depth_dim': 1,
+    "z_pres_dim": 1,
+    "z_depth_dim": 1,
     # (h, w)
-    'z_where_scale_dim': 2,
+    "z_where_scale_dim": 2,
     # (x, y)
-    'z_where_shift_dim': 2,
-    'z_what_dim': 32,
-
+    "z_where_shift_dim": 2,
+    "z_what_dim": 32,
     # z_pres prior
-    'z_pres_start_step': 4000,
-    'z_pres_end_step': 10000,
-    'z_pres_start_value': 0.1,
-    'z_pres_end_value': 0.01,
-
+    "z_pres_start_step": 4000,
+    "z_pres_end_step": 10000,
+    "z_pres_start_value": 0.1,
+    "z_pres_end_value": 0.01,
     # z_scale prior
-    'z_scale_mean_start_step': 10000,
-    'z_scale_mean_end_step': 20000,
-    'z_scale_mean_start_value': -1.0,
-    'z_scale_mean_end_value': -2.0,
-    'z_scale_std_value': 0.1,
-
+    "z_scale_mean_start_step": 10000,
+    "z_scale_mean_end_step": 20000,
+    "z_scale_mean_start_value": -1.0,
+    "z_scale_mean_end_value": -2.0,
+    "z_scale_std_value": 0.1,
     # Temperature for gumbel-softmax
-    'tau_start_step': 0,
-    'tau_end_step': 10000,
-    'tau_start_value': 2.5,
-    'tau_end_value': 2.5,
-
+    "tau_start_step": 0,
+    "tau_end_step": 10000,
+    "tau_start_value": 2.5,
+    "tau_end_value": 2.5,
     # Turn on boundary loss or not
-    'boundary_loss': True,
+    "boundary_loss": True,
     # When to turn off boundary loss
-    'bl_off_step': 100000000,
-
+    "bl_off_step": 100000000,
     # Fix alpha for the first N steps
-    'fix_alpha_steps': 0,
-    'fix_alpha_value': 0.1,
+    "fix_alpha_steps": 0,
+    "fix_alpha_value": 0.1,
     # ==== END ====
-
     # Background configurations
     # ==== START ====
     # Number of background components. If you set this to one, you should use a strong decoder instead.
-    'K': 5,
+    "K": 5,
     # Background likelihood sigma
-    'bg_sigma': 0.15,
+    "bg_sigma": 0.15,
     # Image encoding dimension
-    'img_enc_dim_bg': 64,
+    "img_enc_dim_bg": 64,
     # Latent dimensions
-    'z_mask_dim': 32,
-    'z_comp_dim': 32,
-
+    "z_mask_dim": 32,
+    "z_comp_dim": 32,
     # (H, W)
-    'rnn_mask_hidden_dim': 64,
+    "rnn_mask_hidden_dim": 64,
     # This should be same as above
-    'rnn_mask_prior_hidden_dim': 64,
+    "rnn_mask_prior_hidden_dim": 64,
     # Hidden layer dim for the network that computes q(z_c|z_m, x)
-    'predict_comp_hidden_dim': 64,
+    "predict_comp_hidden_dim": 64,
     # ==== END ====
 }
 
@@ -108,8 +99,12 @@ def spatial_transform(image, z_where, out_dims, inverse=False):
     theta[:, 1, 1] = z_where[:, 1] if not inverse else 1 / (z_where[:, 1] + 1e-9)
 
     # set translation
-    theta[:, 0, -1] = z_where[:, 2] if not inverse else - z_where[:, 2] / (z_where[:, 0] + 1e-9)
-    theta[:, 1, -1] = z_where[:, 3] if not inverse else - z_where[:, 3] / (z_where[:, 1] + 1e-9)
+    theta[:, 0, -1] = (
+        z_where[:, 2] if not inverse else -z_where[:, 2] / (z_where[:, 0] + 1e-9)
+    )
+    theta[:, 1, -1] = (
+        z_where[:, 3] if not inverse else -z_where[:, 3] / (z_where[:, 1] + 1e-9)
+    )
     # 2. construct sampling grid
     grid = F.affine_grid(theta, torch.Size(out_dims))
     # 3. sample image from grid
@@ -166,8 +161,11 @@ def kl_divergence_bern_bern(z_pres_logits, prior_pres_prob, eps=1e-15):
     :return: kl divergence, (B, ...)
     """
     z_pres_probs = torch.sigmoid(z_pres_logits)
-    kl = z_pres_probs * (torch.log(z_pres_probs + eps) - torch.log(prior_pres_prob + eps)) + \
-         (1 - z_pres_probs) * (torch.log(1 - z_pres_probs + eps) - torch.log(1 - prior_pres_prob + eps))
+    kl = z_pres_probs * (
+        torch.log(z_pres_probs + eps) - torch.log(prior_pres_prob + eps)
+    ) + (1 - z_pres_probs) * (
+        torch.log(1 - z_pres_probs + eps) - torch.log(1 - prior_pres_prob + eps)
+    )
 
     return kl
 
@@ -184,7 +182,10 @@ def get_boundary_kernel_new(kernel_size=32, boundary_width=6):
     filter = torch.zeros(kernel_size, kernel_size)
     filter[:, :] = 1.0 / (kernel_size ** 2)
     # Set center to zero
-    filter[boundary_width:kernel_size - boundary_width, boundary_width:kernel_size - boundary_width] = 0.0
+    filter[
+        boundary_width : kernel_size - boundary_width,
+        boundary_width : kernel_size - boundary_width,
+    ] = 0.0
 
     return filter
 
@@ -202,18 +203,18 @@ class SpaceFg(nn.Module):
         self.fg_sigma = arch.fg_sigma
         # I register many things as buffer but this is not really necessary.
         # Temperature for gumbel-softmax
-        self.register_buffer('tau', torch.tensor(arch.tau_start_value))
+        self.register_buffer("tau", torch.tensor(arch.tau_start_value))
 
         # Priors
-        self.register_buffer('prior_z_pres_prob', torch.tensor(arch.z_pres_start_value))
-        self.register_buffer('prior_what_mean', torch.zeros(1))
-        self.register_buffer('prior_what_std', torch.ones(1))
-        self.register_buffer('prior_depth_mean', torch.zeros(1))
-        self.register_buffer('prior_depth_std', torch.ones(1))
+        self.register_buffer("prior_z_pres_prob", torch.tensor(arch.z_pres_start_value))
+        self.register_buffer("prior_what_mean", torch.zeros(1))
+        self.register_buffer("prior_what_std", torch.ones(1))
+        self.register_buffer("prior_depth_mean", torch.zeros(1))
+        self.register_buffer("prior_depth_std", torch.ones(1))
         self.prior_scale_mean_new = torch.tensor(arch.z_scale_mean_start_value)
         self.prior_scale_std_new = torch.tensor(arch.z_scale_std_value)
-        self.prior_shift_mean_new = torch.tensor(0.)
-        self.prior_shift_std_new = torch.tensor(1.)
+        self.prior_shift_mean_new = torch.tensor(0.0)
+        self.prior_shift_std_new = torch.tensor(1.0)
         # self.register_buffer('prior_scale_mean_new', torch.tensor(arch.z_scale_mean_start_value))
         # self.register_buffer('prior_scale_std_new', torch.tensor(arch.z_scale_std_value))
         # self.register_buffer('prior_shift_mean_new', torch.tensor(0.))
@@ -254,15 +255,30 @@ class SpaceFg(nn.Module):
         :return:
         """
 
-        self.prior_z_pres_prob = linear_annealing(self.prior_z_pres_prob.device, global_step,
-                                                  arch.z_pres_start_step, arch.z_pres_end_step,
-                                                  arch.z_pres_start_value, arch.z_pres_end_value)
-        self.prior_scale_mean_new = linear_annealing(self.prior_z_pres_prob.device, global_step,
-                                                     arch.z_scale_mean_start_step, arch.z_scale_mean_end_step,
-                                                     arch.z_scale_mean_start_value, arch.z_scale_mean_end_value)
-        self.tau = linear_annealing(self.tau.device, global_step,
-                                    arch.tau_start_step, arch.tau_end_step,
-                                    arch.tau_start_value, arch.tau_end_value)
+        self.prior_z_pres_prob = linear_annealing(
+            self.prior_z_pres_prob.device,
+            global_step,
+            arch.z_pres_start_step,
+            arch.z_pres_end_step,
+            arch.z_pres_start_value,
+            arch.z_pres_end_value,
+        )
+        self.prior_scale_mean_new = linear_annealing(
+            self.prior_z_pres_prob.device,
+            global_step,
+            arch.z_scale_mean_start_step,
+            arch.z_scale_mean_end_step,
+            arch.z_scale_mean_start_value,
+            arch.z_scale_mean_end_value,
+        )
+        self.tau = linear_annealing(
+            self.tau.device,
+            global_step,
+            arch.tau_start_step,
+            arch.tau_end_step,
+            arch.tau_start_value,
+            arch.tau_end_value,
+        )
 
     def forward(self, x, globel_step):
         """
@@ -283,16 +299,29 @@ class SpaceFg(nn.Module):
         self.anneal(globel_step)
 
         # Everything is (B, G*G, D), where D varies
-        z_pres, z_depth, z_scale, z_shift, z_where, \
-        z_pres_logits, z_depth_post, z_scale_post, z_shift_post = self.img_encoder(x, self.tau)
+        (
+            z_pres,
+            z_depth,
+            z_scale,
+            z_shift,
+            z_where,
+            z_pres_logits,
+            z_depth_post,
+            z_scale_post,
+            z_shift_post,
+        ) = self.img_encoder(x, self.tau)
 
         # (B, 3, H, W) -> (B*G*G, 3, H, W). Note we must use repeat_interleave instead of repeat
         x_repeat = torch.repeat_interleave(x, arch.G ** 2, dim=0)
 
         # (B*G*G, 3, H, W), where G is the grid size
         # Extract glimpse
-        x_att = spatial_transform(x_repeat, z_where.view(B * arch.G ** 2, 4),
-                                  (B * arch.G ** 2, 3, arch.glimpse_size, arch.glimpse_size), inverse=False)
+        x_att = spatial_transform(
+            x_repeat,
+            z_where.view(B * arch.G ** 2, 4),
+            (B * arch.G ** 2, 3, arch.glimpse_size, arch.glimpse_size),
+            inverse=False,
+        )
 
         # (B*G*G, D)
         z_what, z_what_post = self.z_what_net(x_att)
@@ -307,29 +336,45 @@ class SpaceFg(nn.Module):
 
         # Compute pixel-wise object weights
         # (B*G*G, 1, H, W). These are glimpse size
-        importance_map = alpha_att_hat * 100.0 * torch.sigmoid(-z_depth.view(B * arch.G ** 2, 1, 1, 1))
+        importance_map = (
+            alpha_att_hat
+            * 100.0
+            * torch.sigmoid(-z_depth.view(B * arch.G ** 2, 1, 1, 1))
+        )
         # (B*G*G, 1, H, W). These are of full resolution
-        importance_map_full_res = spatial_transform(importance_map, z_where.view(B * arch.G ** 2, 4),
-                                                    (B * arch.G ** 2, 1, *arch.img_shape),
-                                                    inverse=True)
+        importance_map_full_res = spatial_transform(
+            importance_map,
+            z_where.view(B * arch.G ** 2, 4),
+            (B * arch.G ** 2, 1, *arch.img_shape),
+            inverse=True,
+        )
 
         # (B*G*G, 1, H, W) -> (B, G*G, 1, H, W)
-        importance_map_full_res = importance_map_full_res.view(B, arch.G ** 2, 1, *arch.img_shape)
+        importance_map_full_res = importance_map_full_res.view(
+            B, arch.G ** 2, 1, *arch.img_shape
+        )
         # Normalize (B, >G*G<, 1, H, W)
         importance_map_full_res_norm = torch.softmax(importance_map_full_res, dim=1)
 
         # To full resolution
         # (B*G*G, 3, H, W) -> (B, G*G, 3, H, W)
-        y_each_cell = spatial_transform(y_att, z_where.view(B * arch.G ** 2, 4), (B * arch.G ** 2, 3, *arch.img_shape),
-                                        inverse=True).view(B, arch.G ** 2, 3, *arch.img_shape)
+        y_each_cell = spatial_transform(
+            y_att,
+            z_where.view(B * arch.G ** 2, 4),
+            (B * arch.G ** 2, 3, *arch.img_shape),
+            inverse=True,
+        ).view(B, arch.G ** 2, 3, *arch.img_shape)
         # Weighted sum, (B, 3, H, W)
         y_nobg = (y_each_cell * importance_map_full_res_norm).sum(dim=1)
 
         # To full resolution
         # (B*G*G, 1, H, W) -> (B, G*G, 1, H, W)
-        alpha_each_cell = spatial_transform(alpha_att_hat, z_where.view(B * arch.G ** 2, 4),
-                                      (B * arch.G ** 2, 1, *arch.img_shape),
-                                      inverse=True).view(B, arch.G ** 2, 1, *arch.img_shape)
+        alpha_each_cell = spatial_transform(
+            alpha_att_hat,
+            z_where.view(B * arch.G ** 2, 4),
+            (B * arch.G ** 2, 1, *arch.img_shape),
+            inverse=True,
+        ).view(B, arch.G ** 2, 1, *arch.img_shape)
 
         # Weighted sum, (B, 1, H, W)
         alpha_map = (alpha_each_cell * importance_map_full_res_norm).sum(dim=1)
@@ -349,22 +394,28 @@ class SpaceFg(nn.Module):
         # Reshape z_what and z_what_post
         # (B*G*G, D) -> (B, G*G, D)
         z_what = z_what.view(B, arch.G ** 2, arch.z_what_dim)
-        z_what_post = Normal(*[x.view(B, arch.G ** 2, arch.z_what_dim)
-                               for x in [z_what_post.mean, z_what_post.stddev]])
+        z_what_post = Normal(
+            *[
+                x.view(B, arch.G ** 2, arch.z_what_dim)
+                for x in [z_what_post.mean, z_what_post.stddev]
+            ]
+        )
         # (B, G*G, D)
         kl_z_what = kl_divergence(z_what_post, self.z_what_prior)
 
         # dimensionality check
-        assert ((kl_z_pres.size() == (B, arch.G ** 2, 1)) and
-                (kl_z_depth.size() == (B, arch.G ** 2, 1)) and
-                (kl_z_scale.size() == (B, arch.G ** 2, 2)) and
-                (kl_z_shift.size() == (B, arch.G ** 2, 2)) and
-                (kl_z_what.size() == (B, arch.G ** 2, arch.z_what_dim))
-                )
+        assert (
+            (kl_z_pres.size() == (B, arch.G ** 2, 1))
+            and (kl_z_depth.size() == (B, arch.G ** 2, 1))
+            and (kl_z_scale.size() == (B, arch.G ** 2, 2))
+            and (kl_z_shift.size() == (B, arch.G ** 2, 2))
+            and (kl_z_what.size() == (B, arch.G ** 2, arch.z_what_dim))
+        )
 
         # Reduce (B, G*G, D) -> (B,)
         kl_z_pres, kl_z_depth, kl_z_scale, kl_z_shift, kl_z_what = [
-            x.flatten(start_dim=1).sum(1) for x in [kl_z_pres, kl_z_depth, kl_z_scale, kl_z_shift, kl_z_what]
+            x.flatten(start_dim=1).sum(1)
+            for x in [kl_z_pres, kl_z_depth, kl_z_scale, kl_z_shift, kl_z_what]
         ]
         # (B,)
         kl_z_where = kl_z_scale + kl_z_shift
@@ -375,9 +426,12 @@ class SpaceFg(nn.Module):
         # (1, 1, K, K) * (B*G*G, 1, 1) -> (B*G*G, 1, K, K)
         boundary_kernel = boundary_kernel * z_pres.view(B * arch.G ** 2, 1, 1, 1)
         # (B, G*G, 1, H, W), to full resolution
-        boundary_map = spatial_transform(boundary_kernel, z_where.view(B * arch.G ** 2, 4),
-                                         (B * arch.G ** 2, 1, *arch.img_shape),
-                                         inverse=True).view(B, arch.G ** 2, 1, *arch.img_shape)
+        boundary_map = spatial_transform(
+            boundary_kernel,
+            z_where.view(B * arch.G ** 2, 4),
+            (B * arch.G ** 2, 1, *arch.img_shape),
+            inverse=True,
+        ).view(B, arch.G ** 2, 1, *arch.img_shape)
         # (B, 1, H, W)
         boundary_map = boundary_map.sum(dim=1)
         # TODO: some magic number. For reproducibility I will keep it
@@ -406,39 +460,38 @@ class SpaceFg(nn.Module):
         # For visualizating
         # Dimensionality check
         assert (
-                (z_pres.size() == (B, arch.G ** 2, 1)) and
-                (z_depth.size() == (B, arch.G ** 2, 1)) and
-                (z_scale.size() == (B, arch.G ** 2, 2)) and
-                (z_shift.size() == (B, arch.G ** 2, 2)) and
-                (z_where.size() == (B, arch.G ** 2, 4)) and
-                (z_what.size() == (B, arch.G ** 2, arch.z_what_dim))
+            (z_pres.size() == (B, arch.G ** 2, 1))
+            and (z_depth.size() == (B, arch.G ** 2, 1))
+            and (z_scale.size() == (B, arch.G ** 2, 2))
+            and (z_shift.size() == (B, arch.G ** 2, 2))
+            and (z_where.size() == (B, arch.G ** 2, 4))
+            and (z_what.size() == (B, arch.G ** 2, arch.z_what_dim))
         )
         log = {
-            'fg': y_nobg,
-            'z_what': z_what,
-            'z_where': z_where,
-            'z_pres': z_pres,
-            'z_scale': z_scale,
-            'z_shift': z_shift,
-            'z_depth': z_depth,
-            'z_pres_prob': torch.sigmoid(z_pres_logits),
-            'prior_z_pres_prob': self.prior_z_pres_prob.unsqueeze(0),
-            'o_att': o_att,
-            'alpha_att_hat': alpha_att_hat,
-            'alpha_att': alpha_att,
-            'alpha_map': alpha_map,
-            'boundary_loss': boundary_loss,
-            'boundary_map': boundary_map,
-            'importance_map_full_res_norm': importance_map_full_res_norm,
-
-            'kl_z_what': kl_z_what,
-            'kl_z_pres': kl_z_pres,
-            'kl_z_scale': kl_z_scale,
-            'kl_z_shift': kl_z_shift,
-            'kl_z_depth': kl_z_depth,
-            'kl_z_where': kl_z_where,
-            'patches': y_each_cell,
-            'patch_masks': alpha_each_cell
+            "fg": y_nobg,
+            "z_what": z_what,
+            "z_where": z_where,
+            "z_pres": z_pres,
+            "z_scale": z_scale,
+            "z_shift": z_shift,
+            "z_depth": z_depth,
+            "z_pres_prob": torch.sigmoid(z_pres_logits),
+            "prior_z_pres_prob": self.prior_z_pres_prob.unsqueeze(0),
+            "o_att": o_att,
+            "alpha_att_hat": alpha_att_hat,
+            "alpha_att": alpha_att,
+            "alpha_map": alpha_map,
+            "boundary_loss": boundary_loss,
+            "boundary_map": boundary_map,
+            "importance_map_full_res_norm": importance_map_full_res_norm,
+            "kl_z_what": kl_z_what,
+            "kl_z_pres": kl_z_pres,
+            "kl_z_scale": kl_z_scale,
+            "kl_z_shift": kl_z_shift,
+            "kl_z_depth": kl_z_depth,
+            "kl_z_where": kl_z_where,
+            "patches": y_each_cell,
+            "patch_masks": alpha_each_cell,
         }
         return fg_likelihood, y_nobg, alpha_map, kl, boundary_loss, log
 
@@ -477,7 +530,7 @@ class ImgEncoderFg(nn.Module):
             nn.GroupNorm(32, 256),
             nn.Conv2d(256, arch.img_enc_dim_fg, 1),
             nn.CELU(),
-            nn.GroupNorm(16, arch.img_enc_dim_fg)
+            nn.GroupNorm(16, arch.img_enc_dim_fg),
         )
 
         # Residual Connection in the paper
@@ -488,7 +541,7 @@ class ImgEncoderFg(nn.Module):
             nn.GroupNorm(16, arch.img_enc_dim_fg),
             nn.Conv2d(arch.img_enc_dim_fg, arch.img_enc_dim_fg, 3, 1, 1),
             nn.CELU(),
-            nn.GroupNorm(16, arch.img_enc_dim_fg)
+            nn.GroupNorm(16, arch.img_enc_dim_fg),
         )
 
         # Residual Encoder in the paper
@@ -496,7 +549,7 @@ class ImgEncoderFg(nn.Module):
         self.enc_cat = nn.Sequential(
             nn.Conv2d(arch.img_enc_dim_fg * 2, 128, 3, 1, 1),
             nn.CELU(),
-            nn.GroupNorm(16, 128)
+            nn.GroupNorm(16, 128),
         )
 
         # Image encoding -> latent distribution parameters (B, 128, G, G) -> (B, D, G, G)
@@ -506,10 +559,12 @@ class ImgEncoderFg(nn.Module):
         self.z_depth_net = nn.Conv2d(128, arch.z_depth_dim * 2, 1)
 
         # (G, G). Grid center offset. (offset_x[i, j], offset_y[i, j]) is the center for cell (i, j)
-        offset_y, offset_x = torch.meshgrid([torch.arange(arch.G), torch.arange(arch.G)])
+        offset_y, offset_x = torch.meshgrid(
+            [torch.arange(arch.G), torch.arange(arch.G)]
+        )
 
         # (2, G, G). I do this just to ensure that device is correct.
-        self.register_buffer('offset', torch.stack((offset_x, offset_y), dim=0).float())
+        self.register_buffer("offset", torch.stack((offset_x, offset_y), dim=0).float())
 
     def forward(self, x, tau):
         """
@@ -597,19 +652,27 @@ class ImgEncoderFg(nn.Module):
 
         # Check dimensions
         assert (
-                (z_pres.size() == (B, arch.G ** 2, 1)) and
-                (z_depth.size() == (B, arch.G ** 2, 1)) and
-                (z_shift.size() == (B, arch.G ** 2, 2)) and
-                (z_scale.size() == (B, arch.G ** 2, 2)) and
-                (z_where.size() == (B, arch.G ** 2, 4))
+            (z_pres.size() == (B, arch.G ** 2, 1))
+            and (z_depth.size() == (B, arch.G ** 2, 1))
+            and (z_shift.size() == (B, arch.G ** 2, 2))
+            and (z_scale.size() == (B, arch.G ** 2, 2))
+            and (z_where.size() == (B, arch.G ** 2, 4))
         )
 
-        return z_pres, z_depth, z_scale, z_shift, z_where, \
-               z_pres_logits, z_depth_post, z_scale_post, z_shift_post
+        return (
+            z_pres,
+            z_depth,
+            z_scale,
+            z_shift,
+            z_where,
+            z_pres_logits,
+            z_depth_post,
+            z_scale_post,
+            z_shift_post,
+        )
 
 
 class ZWhatEnc(nn.Module):
-
     def __init__(self):
         super(ZWhatEnc, self).__init__()
 
@@ -667,7 +730,6 @@ class GlimpseDec(nn.Module):
             nn.Conv2d(arch.z_what_dim, 256, 1),
             nn.CELU(),
             nn.GroupNorm(16, 256),
-
             nn.Conv2d(256, 128 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -675,7 +737,6 @@ class GlimpseDec(nn.Module):
             nn.Conv2d(128, 128, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(16, 128),
-
             nn.Conv2d(128, 128 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -683,7 +744,6 @@ class GlimpseDec(nn.Module):
             nn.Conv2d(128, 128, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(16, 128),
-
             nn.Conv2d(128, 64 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -691,7 +751,6 @@ class GlimpseDec(nn.Module):
             nn.Conv2d(64, 64, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(8, 64),
-
             nn.Conv2d(64, 32 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -699,7 +758,6 @@ class GlimpseDec(nn.Module):
             nn.Conv2d(32, 32, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(8, 32),
-
             nn.Conv2d(32, 16 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -731,14 +789,15 @@ class GlimpseDec(nn.Module):
 
 
 class SpaceBg(nn.Module):
-
     def __init__(self):
         nn.Module.__init__(self)
 
         self.image_enc = ImageEncoderBg()
 
         # Compute mask hidden states given image features
-        self.rnn_mask = nn.LSTMCell(arch.z_mask_dim + arch.img_enc_dim_bg, arch.rnn_mask_hidden_dim)
+        self.rnn_mask = nn.LSTMCell(
+            arch.z_mask_dim + arch.img_enc_dim_bg, arch.rnn_mask_hidden_dim
+        )
         self.rnn_mask_h = nn.Parameter(torch.zeros(arch.rnn_mask_hidden_dim))
         self.rnn_mask_c = nn.Parameter(torch.zeros(arch.rnn_mask_hidden_dim))
 
@@ -757,10 +816,16 @@ class SpaceBg(nn.Module):
             self.comp_decoder = CompDecoderStrong()
 
         # ==== Prior related ====
-        self.rnn_mask_prior = nn.LSTMCell(arch.z_mask_dim, arch.rnn_mask_prior_hidden_dim)
+        self.rnn_mask_prior = nn.LSTMCell(
+            arch.z_mask_dim, arch.rnn_mask_prior_hidden_dim
+        )
         # Initial h and c
-        self.rnn_mask_h_prior = nn.Parameter(torch.zeros(arch.rnn_mask_prior_hidden_dim))
-        self.rnn_mask_c_prior = nn.Parameter(torch.zeros(arch.rnn_mask_prior_hidden_dim))
+        self.rnn_mask_h_prior = nn.Parameter(
+            torch.zeros(arch.rnn_mask_prior_hidden_dim)
+        )
+        self.rnn_mask_c_prior = nn.Parameter(
+            torch.zeros(arch.rnn_mask_prior_hidden_dim)
+        )
         # Compute mask latents
         self.predict_mask_prior = PredictMask()
         # Compute component latents
@@ -830,7 +895,13 @@ class SpaceBg(nn.Module):
         masks = masks.view(B * K, 1, H, W)
 
         # Concatenate images (B*K, 4, H, W)
-        comp_vae_input = torch.cat(((masks + 1e-5).log(), x[:, None].repeat(1, K, 1, 1, 1).view(B * K, 3, H, W)), dim=1)
+        comp_vae_input = torch.cat(
+            (
+                (masks + 1e-5).log(),
+                x[:, None].repeat(1, K, 1, 1, 1).view(B * K, 3, H, W),
+            ),
+            dim=1,
+        )
 
         # Component latents, each (B*K, L)
         z_comp_loc, z_comp_scale = self.comp_encoder(comp_vae_input)
@@ -841,7 +912,9 @@ class SpaceBg(nn.Module):
         z_comp_loc_reshape = z_comp_loc.view(B, K, -1)
         z_comp_scale_reshape = z_comp_scale.view(B, K, -1)
         for i in range(arch.K):
-            z_comp_post_this = Normal(z_comp_loc_reshape[:, i], z_comp_scale_reshape[:, i])
+            z_comp_post_this = Normal(
+                z_comp_loc_reshape[:, i], z_comp_scale_reshape[:, i]
+            )
             z_comp_posteriors.append(z_comp_post_this)
 
         # Decode into component images, (B*K, 3, H, W)
@@ -895,12 +968,12 @@ class SpaceBg(nn.Module):
         kl_bg = z_mask_total_kl + z_comp_total_kl
         log = {
             # (B, K, 3, H, W)
-            'comps': comps,
+            "comps": comps,
             # (B, 1, 3, H, W)
-            'masks': masks,
+            "masks": masks,
             # (B, 3, H, W)
-            'bg': bg,
-            'kl_bg': kl_bg
+            "bg": bg,
+            "kl_bg": kl_bg,
         }
 
         return bg_likelihood, bg, kl_bg, log
@@ -992,8 +1065,8 @@ class PredictMask(nn.Module):
 
         """
         x = self.fc(h)
-        z_mask_loc = x[:, :arch.z_mask_dim]
-        z_mask_scale = F.softplus(x[:, arch.z_mask_dim:]) + 1e-4
+        z_mask_loc = x[:, : arch.z_mask_dim]
+        z_mask_scale = F.softplus(x[:, arch.z_mask_dim :]) + 1e-4
 
         return z_mask_loc, z_mask_scale
 
@@ -1008,7 +1081,6 @@ class MaskDecoder(nn.Module):
             nn.Conv2d(arch.z_mask_dim, 256, 1),
             nn.CELU(),
             nn.GroupNorm(16, 256),
-
             nn.Conv2d(256, 256 * 4 * 4, 1),
             nn.PixelShuffle(4),
             nn.CELU(),
@@ -1016,7 +1088,6 @@ class MaskDecoder(nn.Module):
             nn.Conv2d(256, 256, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(16, 256),
-
             nn.Conv2d(256, 128 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -1024,7 +1095,6 @@ class MaskDecoder(nn.Module):
             nn.Conv2d(128, 128, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(16, 128),
-
             nn.Conv2d(128, 64 * 4 * 4, 1),
             nn.PixelShuffle(4),
             nn.CELU(),
@@ -1032,7 +1102,6 @@ class MaskDecoder(nn.Module):
             nn.Conv2d(64, 64, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(8, 64),
-
             nn.Conv2d(64, 16 * 4 * 4, 1),
             nn.PixelShuffle(4),
             nn.CELU(),
@@ -1040,12 +1109,10 @@ class MaskDecoder(nn.Module):
             nn.Conv2d(16, 16, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(4, 16),
-
             nn.Conv2d(16, 16, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(4, 16),
-            nn.Conv2d(16, 1, 3, 1, 1)
-
+            nn.Conv2d(16, 1, 3, 1, 1),
         )
 
     def forward(self, z_mask):
@@ -1099,8 +1166,8 @@ class CompEncoder(nn.Module):
             z_comp_scale: (B, D)
         """
         x = self.enc(x)
-        z_comp_loc = x[:, :arch.z_comp_dim]
-        z_comp_scale = F.softplus(x[:, arch.z_comp_dim:]) + 1e-4
+        z_comp_loc = x[:, : arch.z_comp_dim]
+        z_comp_scale = F.softplus(x[:, arch.z_comp_dim :]) + 1e-4
 
         return z_comp_loc, z_comp_scale
 
@@ -1182,7 +1249,6 @@ class CompDecoder(nn.Module):
 
 
 class CompDecoderStrong(nn.Module):
-
     def __init__(self):
         super(CompDecoderStrong, self).__init__()
 
@@ -1190,7 +1256,6 @@ class CompDecoderStrong(nn.Module):
             nn.Conv2d(arch.z_comp_dim, 256, 1),
             nn.CELU(),
             nn.GroupNorm(16, 256),
-
             nn.Conv2d(256, 256 * 4 * 4, 1),
             nn.PixelShuffle(4),
             nn.CELU(),
@@ -1198,7 +1263,6 @@ class CompDecoderStrong(nn.Module):
             nn.Conv2d(256, 256, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(16, 256),
-
             nn.Conv2d(256, 128 * 4 * 4, 1),
             nn.PixelShuffle(4),
             nn.CELU(),
@@ -1206,7 +1270,6 @@ class CompDecoderStrong(nn.Module):
             nn.Conv2d(128, 128, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(16, 128),
-
             nn.Conv2d(128, 64 * 2 * 2, 1),
             nn.PixelShuffle(2),
             nn.CELU(),
@@ -1214,7 +1277,6 @@ class CompDecoderStrong(nn.Module):
             nn.Conv2d(64, 64, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(8, 64),
-
             nn.Conv2d(64, 16 * 4 * 4, 1),
             nn.PixelShuffle(4),
             nn.CELU(),
@@ -1222,12 +1284,10 @@ class CompDecoderStrong(nn.Module):
             nn.Conv2d(16, 16, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(4, 16),
-
             nn.Conv2d(16, 16, 3, 1, 1),
             nn.CELU(),
             nn.GroupNorm(4, 16),
-            nn.Conv2d(16, 3, 3, 1, 1)
-
+            nn.Conv2d(16, 3, 3, 1, 1),
         )
 
     def forward(self, x):
@@ -1264,14 +1324,15 @@ class PredictComp(nn.Module):
             z_comp_scale: (B, D)
         """
         x = self.mlp(h)
-        z_comp_loc = x[:, :arch.z_comp_dim]
-        z_comp_scale = F.softplus(x[:, arch.z_comp_dim:]) + 1e-4
+        z_comp_loc = x[:, : arch.z_comp_dim]
+        z_comp_scale = F.softplus(x[:, arch.z_comp_dim :]) + 1e-4
 
         return z_comp_loc, z_comp_scale
 
 
 class Space(nn.Module):
-    shortname = 'space'
+    shortname = "space"
+
     def __init__(self):
         nn.Module.__init__(self)
 
@@ -1293,7 +1354,9 @@ class Space(nn.Module):
         bg_likelihood, bg, kl_bg, log_bg = self.bg_module(x, global_step)
 
         # Foreground extraction
-        fg_likelihood, fg, alpha_map, kl_fg, loss_boundary, log_fg = self.fg_module(x, global_step)
+        fg_likelihood, fg, alpha_map, kl_fg, loss_boundary, log_fg = self.fg_module(
+            x, global_step
+        )
 
         # Fix alpha trick
         if global_step and global_step < arch.fix_alpha_steps:
@@ -1301,8 +1364,8 @@ class Space(nn.Module):
 
         # Compute final mixture likelhood
         # (B, 3, H, W)
-        fg_likelihood = (fg_likelihood + (alpha_map + 1e-5).log())
-        bg_likelihood = (bg_likelihood + (1 - alpha_map + 1e-5).log())
+        fg_likelihood = fg_likelihood + (alpha_map + 1e-5).log()
+        bg_likelihood = bg_likelihood + (1 - alpha_map + 1e-5).log()
         # (B, 2, 3, H, W)
         log_like = torch.stack((fg_likelihood, bg_likelihood), dim=1)
         # (B, 3, H, W)
@@ -1321,47 +1384,44 @@ class Space(nn.Module):
         loss = (-elbo + loss_boundary).mean()
 
         log = {
-            'imgs': x,
-            'y': y,
+            "imgs": x,
+            "y": y,
             # (B,)
-            'mse': ((y - x) ** 2).flatten(start_dim=1).sum(dim=1),
-            'log_like': log_like
+            "mse": ((y - x) ** 2).flatten(start_dim=1).sum(dim=1),
+            "log_like": log_like,
         }
         log.update(log_fg)
         log.update(log_bg)
 
-        fg_box = bbox_in_one(
-            log['fg'], log['z_pres'], log['z_scale'], log['z_shift']
-        )
-        log.update({'fg_box': fg_box})
-        torch.any(fg_box > 0., dim=1)
+        fg_box = bbox_in_one(log["fg"], log["z_pres"], log["z_scale"], log["z_shift"])
+        log.update({"fg_box": fg_box})
+        torch.any(fg_box > 0.0, dim=1)
         if torch.any(torch.isnan(loss) or torch.isinf(loss)):
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
         ret = {
-            'loss': loss,
-            'rec_loss': log_like.mean(),
-            'boundary_loss': loss_boundary.mean(),
-            'elbo': elbo.mean(),
-            'kl': kl.mean(),
-            'kl_fg': kl_fg.mean(),
-            'kl_bg': kl_bg.mean(),
-            'kl_what': log['kl_z_what'].mean(),
-            'kl_where': log['kl_z_where'].mean(),
-            'kl_depth': log['kl_z_depth'].mean(),
-            'kl_pres': log['kl_z_pres'].mean(),
-            'canvas': y,
-            'canvas_with_bbox': fg_box,
-            'background': bg,
-            'steps': {
-                'patch': log['patches'],
-                'mask': log['patch_masks'],
-                'z_pres': log['z_pres']
+            "loss": loss,
+            "rec_loss": log_like.mean(),
+            "boundary_loss": loss_boundary.mean(),
+            "elbo": elbo.mean(),
+            "kl": kl.mean(),
+            "kl_fg": kl_fg.mean(),
+            "kl_bg": kl_bg.mean(),
+            "kl_what": log["kl_z_what"].mean(),
+            "kl_where": log["kl_z_where"].mean(),
+            "kl_depth": log["kl_z_depth"].mean(),
+            "kl_pres": log["kl_z_pres"].mean(),
+            "canvas": y,
+            "canvas_with_bbox": fg_box,
+            "background": bg,
+            "steps": {
+                "patch": log["patches"],
+                "mask": log["patch_masks"],
+                "z_pres": log["z_pres"],
             },
-            'layers': {
-                'patch': log['comps'],
-                'mask': log['masks']
-            },
-            'counts': torch.round(log['z_pres']).flatten(1).sum(-1)
+            "layers": {"patch": log["comps"], "mask": log["masks"]},
+            "counts": torch.round(log["z_pres"]).flatten(1).sum(-1),
         }
 
         return ret
@@ -1373,6 +1433,8 @@ gbox[1, -2:, :] = 1
 gbox[1, :, :2] = 1
 gbox[1, :, -2:] = 1
 gbox = gbox.view(1, 3, 21, 21)
+
+
 def bbox_in_one(x, z_pres, z_where_scale, z_where_shift, gbox=gbox):
     B, _, *img_shape = x.size()
     B, N, _ = z_pres.size()
@@ -1381,9 +1443,13 @@ def bbox_in_one(x, z_pres, z_where_scale, z_where_shift, gbox=gbox):
     z_shift = z_where_shift.reshape(-1, 2)
     # argmax_cluster = argmax_cluster.view(-1, 1, 1, 1)
     # kbox = boxes[argmax_cluster.view(-1)]
-    bbox = spatial_transform(z_pres * gbox.to(z_pres.device),  # + (1 - z_pres) * rbox,
-                             torch.cat((z_scale, z_shift), dim=1),
-                             torch.Size([B * N, 3, *img_shape]),
-                             inverse=True)
-    bbox = (bbox.reshape(B, N, 3, *img_shape).sum(dim=1).clamp(0.0, 1.0) + x).clamp(0.0, 1.0)
+    bbox = spatial_transform(
+        z_pres * gbox.to(z_pres.device),  # + (1 - z_pres) * rbox,
+        torch.cat((z_scale, z_shift), dim=1),
+        torch.Size([B * N, 3, *img_shape]),
+        inverse=True,
+    )
+    bbox = (bbox.reshape(B, N, 3, *img_shape).sum(dim=1).clamp(0.0, 1.0) + x).clamp(
+        0.0, 1.0
+    )
     return bbox

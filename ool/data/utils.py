@@ -12,7 +12,8 @@ from ool.env import is_slurm, print_prefix
 class DatasetReadError(ValueError):
     pass
 
-TAR_SP = [Path('/usr/bin/tar'), Path('/bin/tar')]
+
+TAR_SP = [Path("/usr/bin/tar"), Path("/bin/tar")]
 
 
 @lru_cache(None)
@@ -20,11 +21,12 @@ def tarbin():
     for p in TAR_SP:
         if p.exists():
             return str(p)
-    return 'tar'
+    return "tar"
+
 
 def worker_spec_to_cpu(spec: int, batchsize=None) -> int:
     if isinstance(spec, str):
-        if spec == 'no':
+        if spec == "no":
             print(f"No workers requisted; using 0")
             return 0
         else:
@@ -48,15 +50,21 @@ def retrieve_data(target, output):
     print(f"{print_prefix()} - Retrieving {target} to {output}")
     if not output.exists():
         output.mkdir(exist_ok=True)
-    fl_path = Path(str(output / target.name) + '.lock')
+    fl_path = Path(str(output / target.name) + ".lock")
     with filelock.FileLock(fl_path):
         print(f"{print_prefix()} - Grabbed filelock {fl_path}")
-        probably_the_output_folder = Path(str(output / target.name).replace('.tar', '').replace('.gz', ''))
+        probably_the_output_folder = Path(
+            str(output / target.name).replace(".tar", "").replace(".gz", "")
+        )
         if not probably_the_output_folder.exists():
-            subprocess.check_call([tarbin(), "-C", str(output), "-xzf", str(target)], close_fds=True)
+            subprocess.check_call(
+                [tarbin(), "-C", str(output), "-xzf", str(target)], close_fds=True
+            )
             print(f"{print_prefix()} - Done retrieving {target} to {output}")
         else:
-            print(f"{print_prefix()} - Found {probably_the_output_folder}; not retrieving")
+            print(
+                f"{print_prefix()} - Found {probably_the_output_folder}; not retrieving"
+            )
     print(f"{print_prefix()} - Released filelock {fl_path}")
 
 

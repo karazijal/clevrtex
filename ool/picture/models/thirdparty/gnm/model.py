@@ -45,8 +45,12 @@ def spatial_transform(image, z_where, out_dims, inverse=False):
     theta[:, 1, 1] = z_where[:, 1] if not inverse else 1 / (z_where[:, 1] + 1e-15)
 
     # set translation
-    theta[:, 0, -1] = z_where[:, 2] if not inverse else - z_where[:, 2] / (z_where[:, 0] + 1e-15)
-    theta[:, 1, -1] = z_where[:, 3] if not inverse else - z_where[:, 3] / (z_where[:, 1] + 1e-15)
+    theta[:, 0, -1] = (
+        z_where[:, 2] if not inverse else -z_where[:, 2] / (z_where[:, 0] + 1e-15)
+    )
+    theta[:, 1, -1] = (
+        z_where[:, 3] if not inverse else -z_where[:, 3] / (z_where[:, 1] + 1e-15)
+    )
     # 2. construct sampling grid
     grid = F.affine_grid(theta, torch.Size(out_dims))
     # 3. sample image from grid
@@ -61,21 +65,26 @@ def kl_divergence_bern_bern(q_pres_probs, p_pres_prob, eps=1e-15):
     :return: kl divergence, (B, ...)
     """
     # z_pres_probs = torch.sigmoid(z_pres_logits)
-    kl = q_pres_probs * (torch.log(q_pres_probs + eps) - torch.log(p_pres_prob + eps)) + \
-         (1 - q_pres_probs) * (torch.log(1 - q_pres_probs + eps) - torch.log(1 - p_pres_prob + eps))
+    kl = q_pres_probs * (
+        torch.log(q_pres_probs + eps) - torch.log(p_pres_prob + eps)
+    ) + (1 - q_pres_probs) * (
+        torch.log(1 - q_pres_probs + eps) - torch.log(1 - p_pres_prob + eps)
+    )
 
     return kl
 
 
 class StackConvNorm(nn.Module):
-    def __init__(self,
-                 dim_inp: int,
-                 filters: List[int],
-                 kernel_sizes: List[int],
-                 strides: List[int],
-                 groupings: List[int],
-                 norm_act_final: bool,
-                 activation: Callable = nn.CELU):
+    def __init__(
+        self,
+        dim_inp: int,
+        filters: List[int],
+        kernel_sizes: List[int],
+        strides: List[int],
+        groupings: List[int],
+        norm_act_final: bool,
+        activation: Callable = nn.CELU,
+    ):
         super(StackConvNorm, self).__init__()
 
         layers = []
@@ -103,14 +112,16 @@ class StackConvNorm(nn.Module):
 
 
 class StackSubPixelNorm(nn.Module):
-    def __init__(self,
-                 dim_inp: int,
-                 filters: List[int],
-                 kernel_sizes: List[int],
-                 upscale: List[int],
-                 groupings: List[int],
-                 norm_act_final: bool,
-                 activation: Callable = nn.CELU):
+    def __init__(
+        self,
+        dim_inp: int,
+        filters: List[int],
+        kernel_sizes: List[int],
+        upscale: List[int],
+        groupings: List[int],
+        norm_act_final: bool,
+        activation: Callable = nn.CELU,
+    ):
         super(StackSubPixelNorm, self).__init__()
 
         layers = []
@@ -138,12 +149,14 @@ class StackSubPixelNorm(nn.Module):
 
 
 class StackMLP(nn.Module):
-    def __init__(self,
-                 dim_inp: int,
-                 filters: List[int],
-                 norm_act_final: bool,
-                 activation: Callable = nn.CELU,
-                 phase_layer_norm: bool = True):
+    def __init__(
+        self,
+        dim_inp: int,
+        filters: List[int],
+        norm_act_final: bool,
+        activation: Callable = nn.CELU,
+        phase_layer_norm: bool = True,
+    ):
         super(StackMLP, self).__init__()
 
         layers = []
@@ -168,7 +181,6 @@ class StackMLP(nn.Module):
 
 
 class ConvLSTMCell(nn.Module):
-
     def __init__(self, input_dim, hidden_dim, kernel_size=3, num_cell=4):
         super(ConvLSTMCell, self).__init__()
 
@@ -177,16 +189,26 @@ class ConvLSTMCell(nn.Module):
 
         self.kernel_size = kernel_size
         self.padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv2d(in_channels=self.input_dim + hidden_dim,
-                              out_channels=4 * self.hidden_dim,
-                              kernel_size=self.kernel_size,
-                              padding=self.padding,
-                              bias=True)
+        self.conv = nn.Conv2d(
+            in_channels=self.input_dim + hidden_dim,
+            out_channels=4 * self.hidden_dim,
+            kernel_size=self.kernel_size,
+            padding=self.padding,
+            bias=True,
+        )
 
-        self.register_parameter('h_0', torch.nn.Parameter(torch.zeros(1, self.hidden_dim, num_cell, num_cell),
-                                                          requires_grad=True))
-        self.register_parameter('c_0', torch.nn.Parameter(torch.zeros(1, self.hidden_dim, num_cell, num_cell),
-                                                          requires_grad=True))
+        self.register_parameter(
+            "h_0",
+            torch.nn.Parameter(
+                torch.zeros(1, self.hidden_dim, num_cell, num_cell), requires_grad=True
+            ),
+        )
+        self.register_parameter(
+            "c_0",
+            torch.nn.Parameter(
+                torch.zeros(1, self.hidden_dim, num_cell, num_cell), requires_grad=True
+            ),
+        )
 
     def forward(self, x, h_c):
         h_cur, c_cur = h_c
@@ -206,8 +228,10 @@ class ConvLSTMCell(nn.Module):
         return h_next, c_next
 
     def init_hidden(self, batch_size):
-        return self.h_0.expand(batch_size, -1, -1, -1), \
-               self.c_0.expand(batch_size, -1, -1, -1)
+        return (
+            self.h_0.expand(batch_size, -1, -1, -1),
+            self.c_0.expand(batch_size, -1, -1, -1),
+        )
 
 
 class LocalLatentDecoder(nn.Module):
@@ -223,17 +247,25 @@ class LocalLatentDecoder(nn.Module):
             self.args.arch.pwdw.pwdw_kernel_sizes,
             self.args.arch.pwdw.pwdw_strides,
             self.args.arch.pwdw.pwdw_groups,
-            norm_act_final=True
+            norm_act_final=True,
         )
 
-        self.q_depth_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_depth_dim * 2, 1)
-        self.q_where_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_where_dim * 2, 1)
-        self.q_what_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_what_dim * 2, 1)
-        self.q_pres_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_pres_dim, 1)
+        self.q_depth_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_depth_dim * 2, 1
+        )
+        self.q_where_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_where_dim * 2, 1
+        )
+        self.q_what_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_what_dim * 2, 1
+        )
+        self.q_pres_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_pres_dim, 1
+        )
 
         torch.nn.init.uniform_(self.q_where_net.weight.data, -0.01, 0.01)
         # scale
-        torch.nn.init.constant_(self.q_where_net.bias.data[0], -1.)
+        torch.nn.init.constant_(self.q_where_net.bias.data[0], -1.0)
         # ratio, x, y, std
         torch.nn.init.constant_(self.q_where_net.bias.data[1:], 0)
 
@@ -245,39 +277,49 @@ class LocalLatentDecoder(nn.Module):
         """
 
         if ss_p_z is not None:
-            p_pres_logits, p_where_mean, p_where_std, p_depth_mean, \
-            p_depth_std, p_what_mean, p_what_std = ss_p_z
+            (
+                p_pres_logits,
+                p_where_mean,
+                p_where_std,
+                p_depth_mean,
+                p_depth_std,
+                p_what_mean,
+                p_what_std,
+            ) = ss_p_z
 
         pwdw_inp = img_enc
 
         pwdw_ss = self.pwdw_net(pwdw_inp)
 
-        q_pres_logits = self.q_pres_net(pwdw_ss).tanh() * self.args.const.pres_logit_scale
+        q_pres_logits = (
+            self.q_pres_net(pwdw_ss).tanh() * self.args.const.pres_logit_scale
+        )
 
         # q_where_mean, q_where_std: (bs, dim, num_cell, num_cell)
-        q_where_mean, q_where_std = \
-            self.q_where_net(pwdw_ss).chunk(2, 1)
+        q_where_mean, q_where_std = self.q_where_net(pwdw_ss).chunk(2, 1)
         q_where_std = F.softplus(q_where_std)
 
         # q_depth_mean, q_depth_std: (bs, dim, num_cell, num_cell)
-        q_depth_mean, q_depth_std = \
-            self.q_depth_net(pwdw_ss).chunk(2, 1)
+        q_depth_mean, q_depth_std = self.q_depth_net(pwdw_ss).chunk(2, 1)
         q_depth_std = F.softplus(q_depth_std)
 
-        q_what_mean, q_what_std = \
-            self.q_what_net(pwdw_ss).chunk(2, 1)
+        q_what_mean, q_what_std = self.q_what_net(pwdw_ss).chunk(2, 1)
         q_what_std = F.softplus(q_what_std)
 
         ss = [
-            q_pres_logits, q_where_mean, q_where_std,
-            q_depth_mean, q_depth_std, q_what_mean, q_what_std
+            q_pres_logits,
+            q_where_mean,
+            q_where_std,
+            q_depth_mean,
+            q_depth_std,
+            q_what_mean,
+            q_what_std,
         ]
 
         return ss
 
 
 class LocalLatentGenerator(nn.Module):
-
     def __init__(self, args: Any):
         super(LocalLatentGenerator, self).__init__()
         self.args = args
@@ -288,17 +330,25 @@ class LocalLatentGenerator(nn.Module):
             self.args.arch.pwdw.pwdw_kernel_sizes,
             self.args.arch.pwdw.pwdw_strides,
             self.args.arch.pwdw.pwdw_groups,
-            norm_act_final=True
+            norm_act_final=True,
         )
 
-        self.p_depth_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_depth_dim * 2, 1)
-        self.p_where_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_where_dim * 2, 1)
-        self.p_what_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_what_dim * 2, 1)
-        self.p_pres_net = nn.Conv2d(self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_pres_dim, 1)
+        self.p_depth_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_depth_dim * 2, 1
+        )
+        self.p_where_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_where_dim * 2, 1
+        )
+        self.p_what_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_what_dim * 2, 1
+        )
+        self.p_pres_net = nn.Conv2d(
+            self.args.arch.pwdw.pwdw_filters[-1], self.args.z.z_pres_dim, 1
+        )
 
         torch.nn.init.uniform_(self.p_where_net.weight.data, -0.01, 0.01)
         # scale
-        torch.nn.init.constant_(self.p_where_net.bias.data[0], -1.)
+        torch.nn.init.constant_(self.p_where_net.bias.data[0], -1.0)
         # ratio, x, y, std
         torch.nn.init.constant_(self.p_where_net.bias.data[1:], 0)
 
@@ -310,32 +360,35 @@ class LocalLatentGenerator(nn.Module):
 
         pwdw_ss = self.pwdw_net(global_dec)
 
-        p_pres_logits = self.p_pres_net(pwdw_ss).tanh() * self.args.const.pres_logit_scale
+        p_pres_logits = (
+            self.p_pres_net(pwdw_ss).tanh() * self.args.const.pres_logit_scale
+        )
 
         # p_where_mean, p_where_std: (bs, dim, num_cell, num_cell)
-        p_where_mean, p_where_std = \
-            self.p_where_net(pwdw_ss).chunk(2, 1)
+        p_where_mean, p_where_std = self.p_where_net(pwdw_ss).chunk(2, 1)
         p_where_std = F.softplus(p_where_std)
 
         # p_depth_mean, p_depth_std: (bs, dim, num_cell, num_cell)
-        p_depth_mean, p_depth_std = \
-            self.p_depth_net(pwdw_ss).chunk(2, 1)
+        p_depth_mean, p_depth_std = self.p_depth_net(pwdw_ss).chunk(2, 1)
         p_depth_std = F.softplus(p_depth_std)
 
-        p_what_mean, p_what_std = \
-            self.p_what_net(pwdw_ss).chunk(2, 1)
+        p_what_mean, p_what_std = self.p_what_net(pwdw_ss).chunk(2, 1)
         p_what_std = F.softplus(p_what_std)
 
         ss = [
-            p_pres_logits, p_where_mean, p_where_std,
-            p_depth_mean, p_depth_std, p_what_mean, p_what_std
+            p_pres_logits,
+            p_where_mean,
+            p_where_std,
+            p_depth_mean,
+            p_depth_std,
+            p_what_mean,
+            p_what_std,
         ]
 
         return ss
 
 
 class LocalSampler(nn.Module):
-
     def __init__(self, args: Any):
         super(LocalSampler, self).__init__()
         self.args = args
@@ -346,38 +399,55 @@ class LocalSampler(nn.Module):
             self.args.arch.conv.p_what_decoder_kernel_sizes,
             self.args.arch.conv.p_what_decoder_upscales,
             self.args.arch.conv.p_what_decoder_groups,
-            norm_act_final=False
+            norm_act_final=False,
         )
 
-        self.register_buffer('offset', torch.stack(
-            torch.meshgrid(torch.arange(args.arch.num_cell).float(),
-                           torch.arange(args.arch.num_cell).float())[::-1], dim=0
-        ).view(1, 2, args.arch.num_cell, args.arch.num_cell))
+        self.register_buffer(
+            "offset",
+            torch.stack(
+                torch.meshgrid(
+                    torch.arange(args.arch.num_cell).float(),
+                    torch.arange(args.arch.num_cell).float(),
+                )[::-1],
+                dim=0,
+            ).view(1, 2, args.arch.num_cell, args.arch.num_cell),
+        )
 
     def forward(self, ss: List, phase_use_mode: bool = False) -> Tuple:
 
-        p_pres_logits, p_where_mean, p_where_std, p_depth_mean, \
-        p_depth_std, p_what_mean, p_what_std = ss
+        (
+            p_pres_logits,
+            p_where_mean,
+            p_where_std,
+            p_depth_mean,
+            p_depth_std,
+            p_what_mean,
+            p_what_std,
+        ) = ss
 
         if phase_use_mode:
             z_pres = (p_pres_logits > 0).float()
         else:
-            z_pres = dist.RelaxedBernoulli(logits=p_pres_logits, temperature=self.args.train.tau_pres).rsample()
+            z_pres = dist.RelaxedBernoulli(
+                logits=p_pres_logits, temperature=self.args.train.tau_pres
+            ).rsample()
 
         # z_where_scale, z_where_shift: (bs, dim, num_cell, num_cell)
         if phase_use_mode:
             z_where_scale, z_where_shift = p_where_mean.chunk(2, 1)
         else:
-            z_where_scale, z_where_shift = \
+            z_where_scale, z_where_shift = (
                 dist.Normal(p_where_mean, p_where_std).rsample().chunk(2, 1)
+            )
 
         # z_where_origin: (bs, dim, num_cell, num_cell)
-        z_where_origin = \
-            torch.cat([z_where_scale.detach(), z_where_shift.detach()], dim=1)
+        z_where_origin = torch.cat(
+            [z_where_scale.detach(), z_where_shift.detach()], dim=1
+        )
 
-        z_where_shift = \
-            (2. / self.args.arch.num_cell) * \
-            (self.offset + 0.5 + torch.tanh(z_where_shift)) - 1.
+        z_where_shift = (2.0 / self.args.arch.num_cell) * (
+            self.offset + 0.5 + torch.tanh(z_where_shift)
+        ) - 1.0
 
         scale, ratio = z_where_scale.chunk(2, 1)
         scale = scale.sigmoid()
@@ -394,15 +464,20 @@ class LocalSampler(nn.Module):
             z_depth = dist.Normal(p_depth_mean, p_depth_std).rsample()
             z_what = dist.Normal(p_what_mean, p_what_std).rsample()
 
-        z_what_reshape = z_what.permute(0, 2, 3, 1).reshape(-1, self.args.z.z_what_dim). \
-            view(-1, self.args.z.z_what_dim, 1, 1)
+        z_what_reshape = (
+            z_what.permute(0, 2, 3, 1)
+            .reshape(-1, self.args.z.z_what_dim)
+            .view(-1, self.args.z.z_what_dim, 1, 1)
+        )
 
         if self.args.data.inp_channel == 1 or not self.args.arch.phase_overlap:
             o = self.z_what_decoder_net(z_what_reshape)
             o = o.sigmoid()
             a = o.new_ones(o.size())
         elif self.args.arch.phase_overlap:
-            o, a = self.z_what_decoder_net(z_what_reshape).split([self.args.data.inp_channel, 1], dim=1)
+            o, a = self.z_what_decoder_net(z_what_reshape).split(
+                [self.args.data.inp_channel, 1], dim=1
+            )
             o, a = o.sigmoid(), a.sigmoid()
         else:
             raise NotImplemented
@@ -414,7 +489,6 @@ class LocalSampler(nn.Module):
 
 
 class StructDRAW(nn.Module):
-
     def __init__(self, args):
         super(StructDRAW, self).__init__()
         self.args = args
@@ -422,14 +496,17 @@ class StructDRAW(nn.Module):
         self.p_global_decoder_net = StackMLP(
             self.args.z.z_global_dim,
             self.args.arch.mlp.p_global_decoder_filters,
-            norm_act_final=True
+            norm_act_final=True,
         )
 
-        rnn_enc_inp_dim = self.args.arch.img_enc_dim * 2 + \
-                          self.args.arch.structdraw.rnn_decoder_hid_dim
+        rnn_enc_inp_dim = (
+            self.args.arch.img_enc_dim * 2
+            + self.args.arch.structdraw.rnn_decoder_hid_dim
+        )
 
-        rnn_dec_inp_dim = self.args.arch.mlp.p_global_decoder_filters[-1] // \
-                          (self.args.arch.num_cell ** 2)
+        rnn_dec_inp_dim = self.args.arch.mlp.p_global_decoder_filters[-1] // (
+            self.args.arch.num_cell ** 2
+        )
 
         rnn_dec_inp_dim += self.args.arch.structdraw.hid_to_dec_filters[-1]
 
@@ -437,26 +514,28 @@ class StructDRAW(nn.Module):
             input_dim=rnn_enc_inp_dim,
             hidden_dim=self.args.arch.structdraw.rnn_encoder_hid_dim,
             kernel_size=self.args.arch.structdraw.kernel_size,
-            num_cell=self.args.arch.num_cell
+            num_cell=self.args.arch.num_cell,
         )
 
         self.rnn_dec = ConvLSTMCell(
             input_dim=rnn_dec_inp_dim,
             hidden_dim=self.args.arch.structdraw.rnn_decoder_hid_dim,
             kernel_size=self.args.arch.structdraw.kernel_size,
-            num_cell=self.args.arch.num_cell
+            num_cell=self.args.arch.num_cell,
         )
 
         self.p_global_net = StackMLP(
-            self.args.arch.num_cell ** 2 * self.args.arch.structdraw.rnn_decoder_hid_dim,
+            self.args.arch.num_cell ** 2
+            * self.args.arch.structdraw.rnn_decoder_hid_dim,
             self.args.arch.mlp.p_global_encoder_filters,
-            norm_act_final=False
+            norm_act_final=False,
         )
 
         self.q_global_net = StackMLP(
-            self.args.arch.num_cell ** 2 * self.args.arch.structdraw.rnn_encoder_hid_dim,
+            self.args.arch.num_cell ** 2
+            * self.args.arch.structdraw.rnn_encoder_hid_dim,
             self.args.arch.mlp.q_global_encoder_filters,
-            norm_act_final=False
+            norm_act_final=False,
         )
 
         self.hid_to_dec_net = StackConvNorm(
@@ -465,14 +544,26 @@ class StructDRAW(nn.Module):
             self.args.arch.structdraw.hid_to_dec_kernel_sizes,
             self.args.arch.structdraw.hid_to_dec_strides,
             self.args.arch.structdraw.hid_to_dec_groups,
-            norm_act_final=False
+            norm_act_final=False,
         )
 
-        self.register_buffer('dec_step_0', torch.zeros(1, self.args.arch.structdraw.hid_to_dec_filters[-1],
-                                                       self.args.arch.num_cell, self.args.arch.num_cell))
+        self.register_buffer(
+            "dec_step_0",
+            torch.zeros(
+                1,
+                self.args.arch.structdraw.hid_to_dec_filters[-1],
+                self.args.arch.num_cell,
+                self.args.arch.num_cell,
+            ),
+        )
 
-    def forward(self, x: torch.Tensor, phase_generation: bool = False,
-                generation_from_step: Any = None, z_global_predefine: Any = None) -> Tuple:
+    def forward(
+        self,
+        x: torch.Tensor,
+        phase_generation: bool = False,
+        generation_from_step: Any = None,
+        z_global_predefine: Any = None,
+    ) -> Tuple:
         """
         :param x: (bs, dim, num_cell, num_cell) of (bs, dim, img_h, img_w)
         :return:
@@ -493,19 +584,26 @@ class StructDRAW(nn.Module):
 
         for i in range(self.args.arch.draw_step):
 
-            p_global_mean_step, p_global_std_step = \
-                self.p_global_net(h_dec.permute(0, 2, 3, 1).reshape(bs, -1)).chunk(2, -1)
+            p_global_mean_step, p_global_std_step = self.p_global_net(
+                h_dec.permute(0, 2, 3, 1).reshape(bs, -1)
+            ).chunk(2, -1)
             p_global_std_step = F.softplus(p_global_std_step)
 
-            if phase_generation or (generation_from_step is not None and i >= generation_from_step):
+            if phase_generation or (
+                generation_from_step is not None and i >= generation_from_step
+            ):
 
                 q_global_mean_step = x.new_empty(bs, self.args.z.z_global_dim)
                 q_global_std_step = x.new_empty(bs, self.args.z.z_global_dim)
 
                 if z_global_predefine is None or z_global_predefine.size(1) <= i:
-                    z_global_step = dist.Normal(p_global_mean_step, p_global_std_step).rsample()
+                    z_global_step = dist.Normal(
+                        p_global_mean_step, p_global_std_step
+                    ).rsample()
                 else:
-                    z_global_step = z_global_predefine.view(bs, -1, self.args.z.z_global_dim)[:, i]
+                    z_global_step = z_global_predefine.view(
+                        bs, -1, self.args.z.z_global_dim
+                    )[:, i]
 
             else:
 
@@ -516,14 +614,18 @@ class StructDRAW(nn.Module):
 
                 h_enc, c_enc = self.rnn_enc(rnn_encoder_inp, [h_enc, c_enc])
 
-                q_global_mean_step, q_global_std_step = \
-                    self.q_global_net(h_enc.permute(0, 2, 3, 1).reshape(bs, -1)).chunk(2, -1)
+                q_global_mean_step, q_global_std_step = self.q_global_net(
+                    h_enc.permute(0, 2, 3, 1).reshape(bs, -1)
+                ).chunk(2, -1)
 
                 q_global_std_step = F.softplus(q_global_std_step)
-                z_global_step = dist.Normal(q_global_mean_step, q_global_std_step).rsample()
+                z_global_step = dist.Normal(
+                    q_global_mean_step, q_global_std_step
+                ).rsample()
 
-            rnn_decoder_inp = self.p_global_decoder_net(z_global_step). \
-                reshape(bs, -1, self.args.arch.num_cell, self.args.arch.num_cell)
+            rnn_decoder_inp = self.p_global_decoder_net(z_global_step).reshape(
+                bs, -1, self.args.arch.num_cell, self.args.arch.num_cell
+            )
 
             rnn_decoder_inp = torch.cat([rnn_decoder_inp, dec_step], dim=1)
 
@@ -555,7 +657,6 @@ class StructDRAW(nn.Module):
 
 
 class BgEncoder(nn.Module):
-
     def __init__(self, args):
         super(BgEncoder, self).__init__()
         self.args = args
@@ -563,7 +664,7 @@ class BgEncoder(nn.Module):
         self.p_bg_encoder = StackMLP(
             self.args.arch.img_enc_dim * self.args.arch.num_cell ** 2,
             self.args.arch.mlp.q_bg_encoder_filters,
-            norm_act_final=False
+            norm_act_final=False,
         )
 
     def forward(self, x: torch.Tensor) -> Tuple:
@@ -588,7 +689,6 @@ class BgEncoder(nn.Module):
 
 
 class BgGenerator(nn.Module):
-
     def __init__(self, args):
         super(BgGenerator, self).__init__()
         self.args = args
@@ -596,12 +696,12 @@ class BgGenerator(nn.Module):
         inp_dim = self.args.z.z_global_dim * self.args.arch.draw_step
 
         self.p_bg_generator = StackMLP(
-            inp_dim,
-            self.args.arch.mlp.p_bg_generator_filters,
-            norm_act_final=False
+            inp_dim, self.args.arch.mlp.p_bg_generator_filters, norm_act_final=False
         )
 
-    def forward(self, z_global_all: torch.Tensor, phase_use_mode: bool = False) -> Tuple:
+    def forward(
+        self, z_global_all: torch.Tensor, phase_use_mode: bool = False
+    ) -> Tuple:
         """
         :param x: (bs, step, dim, 1, 1)
         :return:
@@ -610,7 +710,9 @@ class BgGenerator(nn.Module):
 
         bg_generator_inp = z_global_all
 
-        p_bg_mean, p_bg_std = self.p_bg_generator(bg_generator_inp.view(bs, -1)).chunk(2, 1)
+        p_bg_mean, p_bg_std = self.p_bg_generator(bg_generator_inp.view(bs, -1)).chunk(
+            2, 1
+        )
         p_bg_std = F.softplus(p_bg_std)
 
         p_bg_mean = p_bg_mean.view(bs, -1, 1, 1)
@@ -629,7 +731,6 @@ class BgGenerator(nn.Module):
 
 
 class BgDecoder(nn.Module):
-
     def __init__(self, args):
         super(BgDecoder, self).__init__()
         self.args = args
@@ -640,7 +741,7 @@ class BgDecoder(nn.Module):
             self.args.arch.conv.p_bg_decoder_kernel_sizes,
             self.args.arch.conv.p_bg_decoder_upscales,
             self.args.arch.conv.p_bg_decoder_groups,
-            norm_act_final=False
+            norm_act_final=False,
         )
 
     def forward(self, z_bg: torch.Tensor) -> List:
@@ -658,7 +759,8 @@ class BgDecoder(nn.Module):
 
 
 class GNM(nn.Module):
-    shortname = 'gnm'
+    shortname = "gnm"
+
     def __init__(self, args):
         super(GNM, self).__init__()
         self.args = args
@@ -669,7 +771,7 @@ class GNM(nn.Module):
             self.args.arch.conv.img_encoder_kernel_sizes,
             self.args.arch.conv.img_encoder_strides,
             self.args.arch.conv.img_encoder_groups,
-            norm_act_final=True
+            norm_act_final=True,
         )
         self.global_struct_draw = StructDRAW(self.args)
         self.p_z_given_x_or_g_net = LocalLatentDecoder(self.args)
@@ -681,21 +783,42 @@ class GNM(nn.Module):
             self.p_bg_given_g_net = BgGenerator(self.args)
             self.q_bg_given_x_net = BgEncoder(self.args)
 
-        self.register_buffer('aux_p_what_mean', torch.zeros(1))
-        self.register_buffer('aux_p_what_std', torch.ones(1))
-        self.register_buffer('aux_p_bg_mean', torch.zeros(1))
-        self.register_buffer('aux_p_bg_std', torch.ones(1))
-        self.register_buffer('aux_p_depth_mean', torch.zeros(1))
-        self.register_buffer('aux_p_depth_std', torch.ones(1))
-        self.register_buffer('aux_p_where_mean',
-                             torch.tensor([self.args.const.scale_mean, self.args.const.ratio_mean, 0, 0])[None, :])
+        self.register_buffer("aux_p_what_mean", torch.zeros(1))
+        self.register_buffer("aux_p_what_std", torch.ones(1))
+        self.register_buffer("aux_p_bg_mean", torch.zeros(1))
+        self.register_buffer("aux_p_bg_std", torch.ones(1))
+        self.register_buffer("aux_p_depth_mean", torch.zeros(1))
+        self.register_buffer("aux_p_depth_std", torch.ones(1))
+        self.register_buffer(
+            "aux_p_where_mean",
+            torch.tensor(
+                [self.args.const.scale_mean, self.args.const.ratio_mean, 0, 0]
+            )[None, :],
+        )
         # self.register_buffer('auxiliary_where_std', torch.ones(1))
-        self.register_buffer('aux_p_where_std',
-                             torch.tensor([self.args.const.scale_std, self.args.const.ratio_std,
-                                           self.args.const.shift_std, self.args.const.shift_std])[None, :])
-        self.register_buffer('aux_p_pres_probs', torch.tensor(self.args.train.p_pres_anneal_start_value))
-        self.register_buffer('background', torch.zeros(1, self.args.data.inp_channel,
-                                                       self.args.data.img_h, self.args.data.img_w))
+        self.register_buffer(
+            "aux_p_where_std",
+            torch.tensor(
+                [
+                    self.args.const.scale_std,
+                    self.args.const.ratio_std,
+                    self.args.const.shift_std,
+                    self.args.const.shift_std,
+                ]
+            )[None, :],
+        )
+        self.register_buffer(
+            "aux_p_pres_probs", torch.tensor(self.args.train.p_pres_anneal_start_value)
+        )
+        self.register_buffer(
+            "background",
+            torch.zeros(
+                1,
+                self.args.data.inp_channel,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            ),
+        )
 
     @property
     def aux_p_what(self):
@@ -742,47 +865,89 @@ class GNM(nn.Module):
         ss_p_z = self.p_z_given_x_or_g_net(global_dec)
 
         # (bs, dim, num_cell, num_cell)
-        p_pres_logits, p_where_mean, p_where_std, p_depth_mean, \
-        p_depth_std, p_what_mean, p_what_std = ss_p_z
+        (
+            p_pres_logits,
+            p_where_mean,
+            p_where_std,
+            p_depth_mean,
+            p_depth_std,
+            p_what_mean,
+            p_what_std,
+        ) = ss_p_z
 
         p_pres_given_g_probs_reshaped = torch.sigmoid(
-            p_pres_logits.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            p_pres_logits.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            )
         )
 
         p_where_given_g = dist.Normal(
-            p_where_mean.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1),
-            p_where_std.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            p_where_mean.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
+            p_where_std.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
         )
         p_depth_given_g = dist.Normal(
-            p_depth_mean.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1),
-            p_depth_std.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            p_depth_mean.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
+            p_depth_std.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
         )
         p_what_given_g = dist.Normal(
-            p_what_mean.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1),
-            p_what_std.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            p_what_mean.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
+            p_what_std.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
         )
 
         ss_q_z = self.p_z_given_x_or_g_net(img_enc, ss_p_z=ss_p_z)
 
         # (bs, dim, num_cell, num_cell)
-        q_pres_logits, q_where_mean, q_where_std, q_depth_mean, \
-        q_depth_std, q_what_mean, q_what_std = ss_q_z
+        (
+            q_pres_logits,
+            q_where_mean,
+            q_where_std,
+            q_depth_mean,
+            q_depth_std,
+            q_what_mean,
+            q_what_std,
+        ) = ss_q_z
 
         q_pres_given_x_and_g_probs_reshaped = torch.sigmoid(
-            q_pres_logits.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            q_pres_logits.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            )
         )
 
         q_where_given_x_and_g = dist.Normal(
-            q_where_mean.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1),
-            q_where_std.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            q_where_mean.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
+            q_where_std.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
         )
         q_depth_given_x_and_g = dist.Normal(
-            q_depth_mean.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1),
-            q_depth_std.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            q_depth_mean.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
+            q_depth_std.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
         )
         q_what_given_x_and_g = dist.Normal(
-            q_what_mean.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1),
-            q_what_std.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+            q_what_mean.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
+            q_what_std.permute(0, 2, 3, 1).reshape(
+                bs * self.args.arch.num_cell ** 2, -1
+            ),
         )
 
         if self.args.arch.phase_background:
@@ -803,120 +968,149 @@ class GNM(nn.Module):
 
         z_pres, z_where, z_depth, z_what, z_where_origin = lv_z
 
-        p_dists = [p_global_all, p_pres_given_g_probs_reshaped,
-                   p_where_given_g, p_depth_given_g, p_what_given_g, p_bg]
+        p_dists = [
+            p_global_all,
+            p_pres_given_g_probs_reshaped,
+            p_where_given_g,
+            p_depth_given_g,
+            p_what_given_g,
+            p_bg,
+        ]
 
-        q_dists = [q_global_all, q_pres_given_x_and_g_probs_reshaped,
-                   q_where_given_x_and_g, q_depth_given_x_and_g, q_what_given_x_and_g, q_bg]
+        q_dists = [
+            q_global_all,
+            q_pres_given_x_and_g_probs_reshaped,
+            q_where_given_x_and_g,
+            q_depth_given_x_and_g,
+            q_what_given_x_and_g,
+            q_bg,
+        ]
 
-        log_like, kl, log_imp = \
-            self.elbo(x, p_dists, q_dists, lv_z, lv_g, lv_q_bg, pa_recon)
+        log_like, kl, log_imp = self.elbo(
+            x, p_dists, q_dists, lv_z, lv_g, lv_q_bg, pa_recon
+        )
 
         self.log = {}
 
         if self.args.log.phase_log:
-            pa_recon_from_q_g, _ = self.get_recon_from_q_g(global_dec=global_dec, lv_g=lv_g)
+            pa_recon_from_q_g, _ = self.get_recon_from_q_g(
+                global_dec=global_dec, lv_g=lv_g
+            )
 
             z_pres_permute = z_pres.permute(0, 2, 3, 1)
             self.log = {
-                'z_what': z_what.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_what_dim),
-                'z_where_scale':
-                    z_where.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)
-                    [:, :self.args.z.z_where_scale_dim],
-                'z_where_shift':
-                    z_where.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)
-                    [:, self.args.z.z_where_scale_dim:],
-                'z_where_origin': z_where_origin.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_where_dim),
-                'z_pres': z_pres_permute,
-                'p_pres_probs': p_pres_given_g_probs_reshaped,
-                'p_pres_logits': p_pres_logits,
-                'p_what_std': p_what_std.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_what_dim)[z_pres_permute.view(-1) > 0.05],
-                'p_what_mean': p_what_mean.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_what_dim)[z_pres_permute.view(-1) > 0.05],
-                'p_where_scale_std':
-                    p_where_std.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, :self.args.z.z_where_scale_dim],
-                'p_where_scale_mean':
-                    p_where_mean.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, :self.args.z.z_where_scale_dim],
-                'p_where_shift_std':
-                    p_where_std.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, self.args.z.z_where_scale_dim:],
-                'p_where_shift_mean':
-                    p_where_mean.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, self.args.z.z_where_scale_dim:],
-
-                'q_pres_probs': q_pres_given_x_and_g_probs_reshaped,
-                'q_pres_logits': q_pres_logits,
-                'q_what_std': q_what_std.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_what_dim)[z_pres_permute.view(-1) > 0.05],
-                'q_what_mean': q_what_mean.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_what_dim)[z_pres_permute.view(-1) > 0.05],
-                'q_where_scale_std':
-                    q_where_std.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, :self.args.z.z_where_scale_dim],
-                'q_where_scale_mean':
-                    q_where_mean.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, :self.args.z.z_where_scale_dim],
-                'q_where_shift_std':
-                    q_where_std.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, self.args.z.z_where_scale_dim:],
-                'q_where_shift_mean':
-                    q_where_mean.permute(0, 2, 3, 1).
-                        reshape(-1, self.args.z.z_where_dim)[z_pres_permute.view(-1) > 0.05]
-                    [:, self.args.z.z_where_scale_dim:],
-
-                'z_depth': z_depth.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_depth_dim),
-                'p_depth_std': p_depth_std.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_depth_dim)[z_pres_permute.view(-1) > 0.05],
-                'p_depth_mean': p_depth_mean.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_depth_dim)[z_pres_permute.view(-1) > 0.05],
-                'q_depth_std': q_depth_std.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_depth_dim)[z_pres_permute.view(-1) > 0.05],
-                'q_depth_mean': q_depth_mean.permute(0, 2, 3, 1).
-                    reshape(-1, self.args.z.z_depth_dim)[z_pres_permute.view(-1) > 0.05],
-                'recon': pa_recon[0],
-                'recon_from_q_g': pa_recon_from_q_g[0],
-                'log_prob_x_given_g': dist.Normal(pa_recon_from_q_g[0], self.args.const.likelihood_sigma).
-                    log_prob(x).flatten(start_dim=1).sum(1),
-                'global_dec': global_dec,
+                "z_what": z_what.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_what_dim
+                ),
+                "z_where_scale": z_where.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[:, : self.args.z.z_where_scale_dim],
+                "z_where_shift": z_where.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[:, self.args.z.z_where_scale_dim :],
+                "z_where_origin": z_where_origin.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                ),
+                "z_pres": z_pres_permute,
+                "p_pres_probs": p_pres_given_g_probs_reshaped,
+                "p_pres_logits": p_pres_logits,
+                "p_what_std": p_what_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_what_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "p_what_mean": p_what_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_what_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "p_where_scale_std": p_where_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, : self.args.z.z_where_scale_dim],
+                "p_where_scale_mean": p_where_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, : self.args.z.z_where_scale_dim],
+                "p_where_shift_std": p_where_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, self.args.z.z_where_scale_dim :],
+                "p_where_shift_mean": p_where_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, self.args.z.z_where_scale_dim :],
+                "q_pres_probs": q_pres_given_x_and_g_probs_reshaped,
+                "q_pres_logits": q_pres_logits,
+                "q_what_std": q_what_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_what_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "q_what_mean": q_what_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_what_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "q_where_scale_std": q_where_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, : self.args.z.z_where_scale_dim],
+                "q_where_scale_mean": q_where_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, : self.args.z.z_where_scale_dim],
+                "q_where_shift_std": q_where_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, self.args.z.z_where_scale_dim :],
+                "q_where_shift_mean": q_where_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_where_dim
+                )[z_pres_permute.view(-1) > 0.05][:, self.args.z.z_where_scale_dim :],
+                "z_depth": z_depth.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_depth_dim
+                ),
+                "p_depth_std": p_depth_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_depth_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "p_depth_mean": p_depth_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_depth_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "q_depth_std": q_depth_std.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_depth_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "q_depth_mean": q_depth_mean.permute(0, 2, 3, 1).reshape(
+                    -1, self.args.z.z_depth_dim
+                )[z_pres_permute.view(-1) > 0.05],
+                "recon": pa_recon[0],
+                "recon_from_q_g": pa_recon_from_q_g[0],
+                "log_prob_x_given_g": dist.Normal(
+                    pa_recon_from_q_g[0], self.args.const.likelihood_sigma
+                )
+                .log_prob(x)
+                .flatten(start_dim=1)
+                .sum(1),
+                "global_dec": global_dec,
             }
             z_global_all = lv_g[0]
             for i in range(self.args.arch.draw_step):
-                self.log[f'z_global_step_{i}'] = z_global_all[:, i]
-                self.log[f'q_global_mean_step_{i}'] = q_global_mean_all[:, i]
-                self.log[f'q_global_std_step_{i}'] = q_global_std_all[:, i]
-                self.log[f'p_global_mean_step_{i}'] = p_global_mean_all[:, i]
-                self.log[f'p_global_std_step_{i}'] = p_global_std_all[:, i]
+                self.log[f"z_global_step_{i}"] = z_global_all[:, i]
+                self.log[f"q_global_mean_step_{i}"] = q_global_mean_all[:, i]
+                self.log[f"q_global_std_step_{i}"] = q_global_std_all[:, i]
+                self.log[f"p_global_mean_step_{i}"] = p_global_mean_all[:, i]
+                self.log[f"p_global_std_step_{i}"] = p_global_std_all[:, i]
             if self.args.arch.phase_background:
-                self.log['z_bg'] = lv_q_bg[0]
-                self.log['p_bg_mean'] = p_bg_mean
-                self.log['p_bg_std'] = p_bg_std
-                self.log['q_bg_mean'] = q_bg_mean
-                self.log['q_bg_std'] = q_bg_std
-                self.log['recon_from_q_g_bg'] = pa_recon_from_q_g[-1]
-                self.log['recon_from_q_g_fg'] = pa_recon_from_q_g[1]
-                self.log['recon_from_q_g_alpha'] = pa_recon_from_q_g[2]
-                self.log['recon_bg'] = pa_recon[-1]
-                self.log['recon_fg'] = pa_recon[1]
-                self.log['recon_alpha'] = pa_recon[2]
+                self.log["z_bg"] = lv_q_bg[0]
+                self.log["p_bg_mean"] = p_bg_mean
+                self.log["p_bg_std"] = p_bg_std
+                self.log["q_bg_mean"] = q_bg_mean
+                self.log["q_bg_std"] = q_bg_std
+                self.log["recon_from_q_g_bg"] = pa_recon_from_q_g[-1]
+                self.log["recon_from_q_g_fg"] = pa_recon_from_q_g[1]
+                self.log["recon_from_q_g_alpha"] = pa_recon_from_q_g[2]
+                self.log["recon_bg"] = pa_recon[-1]
+                self.log["recon_fg"] = pa_recon[1]
+                self.log["recon_alpha"] = pa_recon[2]
 
         ss = [ss_q_z, ss_q_bg, ss_g[2:]]
-        aux_kl_pres, aux_kl_where, aux_kl_depth, aux_kl_what, aux_kl_bg, kl_pres, \
-        kl_where, kl_depth, kl_what, kl_global_all, kl_bg = kl
+        (
+            aux_kl_pres,
+            aux_kl_where,
+            aux_kl_depth,
+            aux_kl_what,
+            aux_kl_bg,
+            kl_pres,
+            kl_where,
+            kl_depth,
+            kl_what,
+            kl_global_all,
+            kl_bg,
+        ) = kl
 
         aux_kl_pres_raw = aux_kl_pres.mean(dim=0)
         aux_kl_where_raw = aux_kl_where.mean(dim=0)
@@ -946,60 +1140,89 @@ class GNM(nn.Module):
         kl_global = kl_global_raw * self.args.train.beta_global
 
         recon_loss = log_like
-        kl = kl_pres + kl_where + kl_depth + kl_what + kl_bg + kl_global + \
-             aux_kl_pres + aux_kl_where + aux_kl_depth + aux_kl_what + aux_kl_bg
+        kl = (
+            kl_pres
+            + kl_where
+            + kl_depth
+            + kl_what
+            + kl_bg
+            + kl_global
+            + aux_kl_pres
+            + aux_kl_where
+            + aux_kl_depth
+            + aux_kl_what
+            + aux_kl_bg
+        )
         elbo = recon_loss - kl
-        loss = - elbo
+        loss = -elbo
 
-        bbox = visualize(x.cpu(),
-                         self.log['z_pres'].view(bs, self.args.arch.num_cell ** 2, -1).cpu().detach(),
-                         self.log['z_where_scale'].view(bs, self.args.arch.num_cell ** 2, -1).cpu().detach(),
-                         self.log['z_where_shift'].view(bs, self.args.arch.num_cell ** 2, -1).cpu().detach(),
-                         only_bbox=True, phase_only_display_pres=False)
+        bbox = visualize(
+            x.cpu(),
+            self.log["z_pres"]
+            .view(bs, self.args.arch.num_cell ** 2, -1)
+            .cpu()
+            .detach(),
+            self.log["z_where_scale"]
+            .view(bs, self.args.arch.num_cell ** 2, -1)
+            .cpu()
+            .detach(),
+            self.log["z_where_shift"]
+            .view(bs, self.args.arch.num_cell ** 2, -1)
+            .cpu()
+            .detach(),
+            only_bbox=True,
+            phase_only_display_pres=False,
+        )
 
-        bbox = bbox.view(x.shape[0], -1, 3, self.args.data.img_h, self.args.data.img_w).sum(1).clamp(0.0, 1.0)
+        bbox = (
+            bbox.view(x.shape[0], -1, 3, self.args.data.img_h, self.args.data.img_w)
+            .sum(1)
+            .clamp(0.0, 1.0)
+        )
         # bbox_img = x.cpu().expand(-1, 3, -1, -1).contiguous()
         # bbox_img[bbox.sum(dim=1, keepdim=True).expand(-1, 3, -1, -1) > 0.5] = \
         #     bbox[bbox.sum(dim=1, keepdim=True).expand(-1, 3, -1, -1) > 0.5]
         ret = {
-            'canvas': canvas,
-            'canvas_with_bbox': bbox,
-            'background': background,
-            'steps': {
-                'patch': patches,
-                'mask': masks,
-                'z_pres': z_pres.view(bs, self.args.arch.num_cell ** 2, -1)
+            "canvas": canvas,
+            "canvas_with_bbox": bbox,
+            "background": background,
+            "steps": {
+                "patch": patches,
+                "mask": masks,
+                "z_pres": z_pres.view(bs, self.args.arch.num_cell ** 2, -1),
             },
-            'counts': torch.round(z_pres).flatten(1).sum(-1),
-            'loss': loss,
-            'elbo': elbo,
-            'kl': kl,
-            'rec_loss': recon_loss,
-            'kl_pres': kl_pres,
-            'kl_aux_pres': aux_kl_pres,
-            'kl_where': kl_where,
-            'kl_aux_where': aux_kl_where,
-            'kl_what': kl_what,
-            'kl_aux_what': aux_kl_what,
-            'kl_depth': kl_depth,
-            'kl_aux_depth': aux_kl_depth,
-            'kl_bg': kl_bg,
-            'kl_aux_bg': aux_kl_bg,
-            'kl_global': kl_global
+            "counts": torch.round(z_pres).flatten(1).sum(-1),
+            "loss": loss,
+            "elbo": elbo,
+            "kl": kl,
+            "rec_loss": recon_loss,
+            "kl_pres": kl_pres,
+            "kl_aux_pres": aux_kl_pres,
+            "kl_where": kl_where,
+            "kl_aux_where": aux_kl_where,
+            "kl_what": kl_what,
+            "kl_aux_what": aux_kl_what,
+            "kl_depth": kl_depth,
+            "kl_aux_depth": aux_kl_depth,
+            "kl_bg": kl_bg,
+            "kl_aux_bg": aux_kl_bg,
+            "kl_global": kl_global,
         }
 
         # return pa_recon, log_like, kl, log_imp, lv_z + lv_g + lv_q_bg, ss, self.log
         return ret
 
     def get_recon_from_q_g(
-            self,
-            img: torch.Tensor = None,
-            global_dec: torch.Tensor = None,
-            lv_g: List = None,
-            phase_use_mode: bool = False
+        self,
+        img: torch.Tensor = None,
+        global_dec: torch.Tensor = None,
+        lv_g: List = None,
+        phase_use_mode: bool = False,
     ) -> Tuple:
 
-        assert img is not None or (global_dec is not None and lv_g is not None), "Provide either image or p_l_given_g"
+        assert img is not None or (
+            global_dec is not None and lv_g is not None
+        ), "Provide either image or p_l_given_g"
         if img is not None:
             img_enc = self.img_encoder(img)
             pa_g, lv_g, ss_g = self.global_struct_draw(img_enc)
@@ -1013,7 +1236,9 @@ class GNM(nn.Module):
 
         ss_z = self.p_z_given_x_or_g_net(global_dec)
 
-        pa, lv = self.lv_p_x_given_z_and_bg(ss_z, lv_p_bg, phase_use_mode=phase_use_mode)
+        pa, lv = self.lv_p_x_given_z_and_bg(
+            ss_z, lv_p_bg, phase_use_mode=phase_use_mode
+        )
 
         lv = lv + lv_p_bg
 
@@ -1033,29 +1258,45 @@ class GNM(nn.Module):
 
         ss_z = self.p_z_given_x_or_g_net(global_dec)
 
-        pa, lv = self.lv_p_x_given_z_and_bg(ss_z, lv_p_bg, phase_use_mode=phase_use_mode)
+        pa, lv = self.lv_p_x_given_z_and_bg(
+            ss_z, lv_p_bg, phase_use_mode=phase_use_mode
+        )
 
         z_global_all = lv_g[0]
         lv_g_z = [z_global_all] + lv
 
         return pa, lv_g_z, ss_z
 
-    def elbo(self,
-             x: torch.Tensor,
-             p_dists: List,
-             q_dists: List,
-             lv_z: List,
-             lv_g: List,
-             lv_bg: List,
-             pa_recon: List) -> Tuple:
+    def elbo(
+        self,
+        x: torch.Tensor,
+        p_dists: List,
+        q_dists: List,
+        lv_z: List,
+        lv_g: List,
+        lv_bg: List,
+        pa_recon: List,
+    ) -> Tuple:
 
         bs = x.size(0)
 
-        p_global_all, p_pres_given_g_probs_reshaped, \
-        p_where_given_g, p_depth_given_g, p_what_given_g, p_bg = p_dists
+        (
+            p_global_all,
+            p_pres_given_g_probs_reshaped,
+            p_where_given_g,
+            p_depth_given_g,
+            p_what_given_g,
+            p_bg,
+        ) = p_dists
 
-        q_global_all, q_pres_given_x_and_g_probs_reshaped, \
-        q_where_given_x_and_g, q_depth_given_x_and_g, q_what_given_x_and_g, q_bg = q_dists
+        (
+            q_global_all,
+            q_pres_given_x_and_g_probs_reshaped,
+            q_where_given_x_and_g,
+            q_depth_given_x_and_g,
+            q_what_given_x_and_g,
+            q_bg,
+        ) = q_dists
 
         y, y_nobg, alpha_map, bg = pa_recon
 
@@ -1063,10 +1304,18 @@ class GNM(nn.Module):
             # (bs, dim, num_cell, num_cell)
             z_pres, _, z_depth, z_what, z_where_origin = lv_z
             # (bs * num_cell * num_cell, dim)
-            z_pres_reshape = z_pres.permute(0, 2, 3, 1).reshape(-1, self.args.z.z_pres_dim)
-            z_depth_reshape = z_depth.permute(0, 2, 3, 1).reshape(-1, self.args.z.z_depth_dim)
-            z_what_reshape = z_what.permute(0, 2, 3, 1).reshape(-1, self.args.z.z_what_dim)
-            z_where_origin_reshape = z_where_origin.permute(0, 2, 3, 1).reshape(-1, self.args.z.z_where_dim)
+            z_pres_reshape = z_pres.permute(0, 2, 3, 1).reshape(
+                -1, self.args.z.z_pres_dim
+            )
+            z_depth_reshape = z_depth.permute(0, 2, 3, 1).reshape(
+                -1, self.args.z.z_depth_dim
+            )
+            z_what_reshape = z_what.permute(0, 2, 3, 1).reshape(
+                -1, self.args.z.z_what_dim
+            )
+            z_where_origin_reshape = z_where_origin.permute(0, 2, 3, 1).reshape(
+                -1, self.args.z.z_where_dim
+            )
             # (bs, dim, 1, 1)
             z_bg = lv_bg[0]
             # (bs, step, dim, 1, 1)
@@ -1074,7 +1323,9 @@ class GNM(nn.Module):
         else:
             z_pres, _, _, _, z_where_origin = lv_z
 
-            z_pres_reshape = z_pres.permute(0, 2, 3, 1).reshape(-1, self.args.z.z_pres_dim)
+            z_pres_reshape = z_pres.permute(0, 2, 3, 1).reshape(
+                -1, self.args.z.z_pres_dim
+            )
 
         if self.args.train.p_pres_anneal_end_step != 0:
             self.aux_p_pres_probs = linear_schedule_tensor(
@@ -1083,7 +1334,7 @@ class GNM(nn.Module):
                 self.args.train.p_pres_anneal_end_step,
                 self.args.train.p_pres_anneal_start_value,
                 self.args.train.p_pres_anneal_end_value,
-                self.aux_p_pres_probs.device
+                self.aux_p_pres_probs.device,
             )
 
         if self.args.train.aux_p_scale_anneal_end_step != 0:
@@ -1093,19 +1344,30 @@ class GNM(nn.Module):
                 self.args.train.aux_p_scale_anneal_end_step,
                 self.args.train.aux_p_scale_anneal_start_value,
                 self.args.train.aux_p_scale_anneal_end_value,
-                self.aux_p_where_mean.device
+                self.aux_p_where_mean.device,
             )
             self.aux_p_where_mean[:, 0] = aux_p_scale_mean
 
         auxiliary_prior_z_pres_probs = self.aux_p_pres_probs[None][None, :].expand(
-            bs * self.args.arch.num_cell ** 2, -1)
+            bs * self.args.arch.num_cell ** 2, -1
+        )
 
-        aux_kl_pres = kl_divergence_bern_bern(q_pres_given_x_and_g_probs_reshaped, auxiliary_prior_z_pres_probs)
-        aux_kl_where = dist.kl_divergence(q_where_given_x_and_g, self.aux_p_where) * z_pres_reshape.clamp(min=1e-5)
-        aux_kl_depth = dist.kl_divergence(q_depth_given_x_and_g, self.aux_p_depth) * z_pres_reshape.clamp(min=1e-5)
-        aux_kl_what = dist.kl_divergence(q_what_given_x_and_g, self.aux_p_what) * z_pres_reshape.clamp(min=1e-5)
+        aux_kl_pres = kl_divergence_bern_bern(
+            q_pres_given_x_and_g_probs_reshaped, auxiliary_prior_z_pres_probs
+        )
+        aux_kl_where = dist.kl_divergence(
+            q_where_given_x_and_g, self.aux_p_where
+        ) * z_pres_reshape.clamp(min=1e-5)
+        aux_kl_depth = dist.kl_divergence(
+            q_depth_given_x_and_g, self.aux_p_depth
+        ) * z_pres_reshape.clamp(min=1e-5)
+        aux_kl_what = dist.kl_divergence(
+            q_what_given_x_and_g, self.aux_p_what
+        ) * z_pres_reshape.clamp(min=1e-5)
 
-        kl_pres = kl_divergence_bern_bern(q_pres_given_x_and_g_probs_reshaped, p_pres_given_g_probs_reshaped)
+        kl_pres = kl_divergence_bern_bern(
+            q_pres_given_x_and_g_probs_reshaped, p_pres_given_g_probs_reshaped
+        )
 
         kl_where = dist.kl_divergence(q_where_given_x_and_g, p_where_given_g)
         kl_depth = dist.kl_divergence(q_depth_given_x_and_g, p_depth_given_g)
@@ -1124,22 +1386,30 @@ class GNM(nn.Module):
 
         log_imp_list = []
         if self.args.log.phase_nll:
-            log_pres_prior = z_pres_reshape * torch.log(p_pres_given_g_probs_reshaped + self.args.const.eps) + \
-                             (1 - z_pres_reshape) * torch.log(1 - p_pres_given_g_probs_reshaped + self.args.const.eps)
-            log_pres_pos = z_pres_reshape * torch.log(q_pres_given_x_and_g_probs_reshaped + self.args.const.eps) + \
-                           (1 - z_pres_reshape) * torch.log(
-                1 - q_pres_given_x_and_g_probs_reshaped + self.args.const.eps)
+            log_pres_prior = z_pres_reshape * torch.log(
+                p_pres_given_g_probs_reshaped + self.args.const.eps
+            ) + (1 - z_pres_reshape) * torch.log(
+                1 - p_pres_given_g_probs_reshaped + self.args.const.eps
+            )
+            log_pres_pos = z_pres_reshape * torch.log(
+                q_pres_given_x_and_g_probs_reshaped + self.args.const.eps
+            ) + (1 - z_pres_reshape) * torch.log(
+                1 - q_pres_given_x_and_g_probs_reshaped + self.args.const.eps
+            )
 
             log_imp_pres = log_pres_prior - log_pres_pos
 
-            log_imp_depth = p_depth_given_g.log_prob(z_depth_reshape) - \
-                            q_depth_given_x_and_g.log_prob(z_depth_reshape)
+            log_imp_depth = p_depth_given_g.log_prob(
+                z_depth_reshape
+            ) - q_depth_given_x_and_g.log_prob(z_depth_reshape)
 
-            log_imp_what = p_what_given_g.log_prob(z_what_reshape) - \
-                           q_what_given_x_and_g.log_prob(z_what_reshape)
+            log_imp_what = p_what_given_g.log_prob(
+                z_what_reshape
+            ) - q_what_given_x_and_g.log_prob(z_what_reshape)
 
-            log_imp_where = p_where_given_g.log_prob(z_where_origin_reshape) - \
-                            q_where_given_x_and_g.log_prob(z_where_origin_reshape)
+            log_imp_where = p_where_given_g.log_prob(
+                z_where_origin_reshape
+            ) - q_where_given_x_and_g.log_prob(z_where_origin_reshape)
 
             if self.args.arch.phase_background:
                 log_imp_bg = p_bg.log_prob(z_bg) - q_bg.log_prob(z_bg)
@@ -1149,34 +1419,71 @@ class GNM(nn.Module):
             log_imp_g = p_global_all.log_prob(z_g) - q_global_all.log_prob(z_g)
 
             log_imp_list = [
-                log_imp_pres.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(1),
-                log_imp_depth.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(
-                    1),
-                log_imp_what.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(1),
-                log_imp_where.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(
-                    1),
+                log_imp_pres.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(1),
+                log_imp_depth.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(1),
+                log_imp_what.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(1),
+                log_imp_where.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(1),
                 log_imp_bg.flatten(start_dim=1).sum(1),
                 log_imp_g.flatten(start_dim=1).sum(1),
             ]
 
-        return log_like.flatten(start_dim=1).sum(1), \
-               [
-                   aux_kl_pres.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(
-                       -1),
-                   aux_kl_where.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(
-                       -1),
-                   aux_kl_depth.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(
-                       -1),
-                   aux_kl_what.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(
-                       -1),
-                   aux_kl_bg.flatten(start_dim=1).sum(-1),
-                   kl_pres.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(-1),
-                   kl_where.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(-1),
-                   kl_depth.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(-1),
-                   kl_what.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1).flatten(start_dim=1).sum(-1),
-                   kl_global_all.flatten(start_dim=2).sum(-1),
-                   kl_bg.flatten(start_dim=1).sum(-1)
-               ], log_imp_list
+        return (
+            log_like.flatten(start_dim=1).sum(1),
+            [
+                aux_kl_pres.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(-1),
+                aux_kl_where.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(-1),
+                aux_kl_depth.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(-1),
+                aux_kl_what.view(
+                    bs, self.args.arch.num_cell, self.args.arch.num_cell, -1
+                )
+                .flatten(start_dim=1)
+                .sum(-1),
+                aux_kl_bg.flatten(start_dim=1).sum(-1),
+                kl_pres.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1)
+                .flatten(start_dim=1)
+                .sum(-1),
+                kl_where.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1)
+                .flatten(start_dim=1)
+                .sum(-1),
+                kl_depth.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1)
+                .flatten(start_dim=1)
+                .sum(-1),
+                kl_what.view(bs, self.args.arch.num_cell, self.args.arch.num_cell, -1)
+                .flatten(start_dim=1)
+                .sum(-1),
+                kl_global_all.flatten(start_dim=2).sum(-1),
+                kl_bg.flatten(start_dim=1).sum(-1),
+            ],
+            log_imp_list,
+        )
 
     # def get_img_enc(self, x: torch.Tensor) -> torch.Tensor:
     #     """
@@ -1225,7 +1532,9 @@ class GNM(nn.Module):
     #
     #     return lv_p_bg, ss_p_bg
 
-    def lv_p_x_given_z_and_bg(self, ss: List, lv_bg: List, phase_use_mode: bool = False) -> Tuple:
+    def lv_p_x_given_z_and_bg(
+        self, ss: List, lv_bg: List, phase_use_mode: bool = False
+    ) -> Tuple:
         """
         :param z: (bs, z_what_dim)
         :return:
@@ -1246,7 +1555,9 @@ class GNM(nn.Module):
 
         # pa = pa + pa_bg
 
-        y, y_fg, alpha_map, patches, masks = self.render(o_att, a_att, y_bg, z_pres, z_where, z_depth)
+        y, y_fg, alpha_map, patches, masks = self.render(
+            o_att, a_att, y_bg, z_pres, z_where, z_depth
+        )
 
         return [y, y_fg, alpha_map, y_bg, patches, masks], lv_z
 
@@ -1269,95 +1580,196 @@ class GNM(nn.Module):
 
         bs = z_pres.size(0)
 
-        z_pres = z_pres.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
-        z_where = z_where.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
-        z_depth = z_depth.permute(0, 2, 3, 1).reshape(bs * self.args.arch.num_cell ** 2, -1)
+        z_pres = z_pres.permute(0, 2, 3, 1).reshape(
+            bs * self.args.arch.num_cell ** 2, -1
+        )
+        z_where = z_where.permute(0, 2, 3, 1).reshape(
+            bs * self.args.arch.num_cell ** 2, -1
+        )
+        z_depth = z_depth.permute(0, 2, 3, 1).reshape(
+            bs * self.args.arch.num_cell ** 2, -1
+        )
 
         if self.args.arch.phase_overlap == True:
-            if self.args.train.phase_bg_alpha_curriculum and \
-                    self.args.train.bg_alpha_curriculum_period[0] < self.args.train.global_step < \
-                    self.args.train.bg_alpha_curriculum_period[1]:
+            if (
+                self.args.train.phase_bg_alpha_curriculum
+                and self.args.train.bg_alpha_curriculum_period[0]
+                < self.args.train.global_step
+                < self.args.train.bg_alpha_curriculum_period[1]
+            ):
                 z_pres = z_pres.clamp(max=0.99)
             a_att_hat = a_att * z_pres.view(-1, 1, 1, 1)
             y_att = a_att_hat * o_att
 
             # (bs, self.args.arch.num_cell * self.args.arch.num_cell, 3, img_h, img_w)
-            y_att_full_res = spatial_transform(y_att, z_where,
-                                               (bs * self.args.arch.num_cell ** 2, self.args.data.inp_channel,
-                                                self.args.data.img_h, self.args.data.img_w),
-                                               inverse=True).view(-1, self.args.arch.num_cell * self.args.arch.num_cell,
-                                                                  self.args.data.inp_channel, self.args.data.img_h,
-                                                                  self.args.data.img_w)
-            o_att_full_res = spatial_transform(o_att, z_where,
-                                               (bs * self.args.arch.num_cell ** 2, self.args.data.inp_channel,
-                                                self.args.data.img_h, self.args.data.img_w),
-                                               inverse=True).view(-1, self.args.arch.num_cell * self.args.arch.num_cell,
-                                                                  self.args.data.inp_channel, self.args.data.img_h,
-                                                                  self.args.data.img_w)
+            y_att_full_res = spatial_transform(
+                y_att,
+                z_where,
+                (
+                    bs * self.args.arch.num_cell ** 2,
+                    self.args.data.inp_channel,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
+            ).view(
+                -1,
+                self.args.arch.num_cell * self.args.arch.num_cell,
+                self.args.data.inp_channel,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            )
+            o_att_full_res = spatial_transform(
+                o_att,
+                z_where,
+                (
+                    bs * self.args.arch.num_cell ** 2,
+                    self.args.data.inp_channel,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
+            ).view(
+                -1,
+                self.args.arch.num_cell * self.args.arch.num_cell,
+                self.args.data.inp_channel,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            )
 
             # (self.args.arch.num_cell * self.args.arch.num_cell * bs, 1, glimpse_size, glimpse_size)
             importance_map = a_att_hat * torch.sigmoid(-z_depth).view(-1, 1, 1, 1)
             # (self.args.arch.num_cell * self.args.arch.num_cell * bs, 1, img_h, img_w)
-            importance_map_full_res = spatial_transform(importance_map, z_where,
-                                                        (self.args.arch.num_cell * self.args.arch.num_cell * bs, 1,
-                                                         self.args.data.img_h, self.args.data.img_w),
-                                                        inverse=True)
+            importance_map_full_res = spatial_transform(
+                importance_map,
+                z_where,
+                (
+                    self.args.arch.num_cell * self.args.arch.num_cell * bs,
+                    1,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
+            )
             # # (bs, self.args.arch.num_cell * self.args.arch.num_cell, 1, img_h, img_w)
-            importance_map_full_res = \
-                importance_map_full_res.view(-1, self.args.arch.num_cell * self.args.arch.num_cell, 1,
-                                             self.args.data.img_h,
-                                             self.args.data.img_w)
-            importance_map_full_res_norm = importance_map_full_res / \
-                                           (importance_map_full_res.sum(dim=1, keepdim=True) + self.args.const.eps)
+            importance_map_full_res = importance_map_full_res.view(
+                -1,
+                self.args.arch.num_cell * self.args.arch.num_cell,
+                1,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            )
+            importance_map_full_res_norm = importance_map_full_res / (
+                importance_map_full_res.sum(dim=1, keepdim=True) + self.args.const.eps
+            )
 
             # (bs, 3, img_h, img_w)
             y_nobg = (y_att_full_res * importance_map_full_res_norm).sum(dim=1)
 
             # (bs, self.args.arch.num_cell * self.args.arch.num_cell, 1, img_h, img_w)
             a_att_hat_full_res = spatial_transform(
-                a_att_hat, z_where,
-                (self.args.arch.num_cell * self.args.arch.num_cell * bs, 1, self.args.data.img_h,
-                 self.args.data.img_w),
-                inverse=True
-            ).view(-1, self.args.arch.num_cell * self.args.arch.num_cell, 1, self.args.data.img_h,
-                   self.args.data.img_w)
+                a_att_hat,
+                z_where,
+                (
+                    self.args.arch.num_cell * self.args.arch.num_cell * bs,
+                    1,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
+            ).view(
+                -1,
+                self.args.arch.num_cell * self.args.arch.num_cell,
+                1,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            )
             alpha_map = a_att_hat_full_res.sum(dim=1)
             # (bs, 1, img_h, img_w)
-            alpha_map = alpha_map + (
-                    alpha_map.clamp(self.args.const.eps, 1 - self.args.const.eps) - alpha_map).detach()
+            alpha_map = (
+                alpha_map
+                + (
+                    alpha_map.clamp(self.args.const.eps, 1 - self.args.const.eps)
+                    - alpha_map
+                ).detach()
+            )
 
             if self.args.train.phase_bg_alpha_curriculum:
-                if self.args.train.bg_alpha_curriculum_period[0] < self.args.train.global_step < \
-                        self.args.train.bg_alpha_curriculum_period[1]:
-                    alpha_map = alpha_map.new_ones(alpha_map.size()) * self.args.train.bg_alpha_curriculum_value
+                if (
+                    self.args.train.bg_alpha_curriculum_period[0]
+                    < self.args.train.global_step
+                    < self.args.train.bg_alpha_curriculum_period[1]
+                ):
+                    alpha_map = (
+                        alpha_map.new_ones(alpha_map.size())
+                        * self.args.train.bg_alpha_curriculum_value
+                    )
                     # y_nobg = alpha_map * y_nobg
-            y = y_nobg + (1. - alpha_map) * bg
+            y = y_nobg + (1.0 - alpha_map) * bg
         else:
             y_att = a_att * o_att
 
-            o_att_full_res = spatial_transform(o_att, z_where,
-                                               (bs * self.args.arch.num_cell ** 2, self.args.data.inp_channel,
-                                                self.args.data.img_h, self.args.data.img_w),
-                                               inverse=True).view(-1, self.args.arch.num_cell * self.args.arch.num_cell,
-                                                                  self.args.data.inp_channel, self.args.data.img_h,
-                                                                  self.args.data.img_w)
+            o_att_full_res = spatial_transform(
+                o_att,
+                z_where,
+                (
+                    bs * self.args.arch.num_cell ** 2,
+                    self.args.data.inp_channel,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
+            ).view(
+                -1,
+                self.args.arch.num_cell * self.args.arch.num_cell,
+                self.args.data.inp_channel,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            )
             a_att_hat_full_res = spatial_transform(
-                a_att * z_pres.view(bs * self.args.arch.num_cell ** 2, 1, 1, 1), z_where,
-                (self.args.arch.num_cell * self.args.arch.num_cell * bs, 1, self.args.data.img_h,
-                 self.args.data.img_w),
-                inverse=True
-            ).view(-1, self.args.arch.num_cell * self.args.arch.num_cell, 1, self.args.data.img_h,
-                   self.args.data.img_w)
+                a_att * z_pres.view(bs * self.args.arch.num_cell ** 2, 1, 1, 1),
+                z_where,
+                (
+                    self.args.arch.num_cell * self.args.arch.num_cell * bs,
+                    1,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
+            ).view(
+                -1,
+                self.args.arch.num_cell * self.args.arch.num_cell,
+                1,
+                self.args.data.img_h,
+                self.args.data.img_w,
+            )
 
             # (self.args.arch.num_cell * self.args.arch.num_cell * bs, 3, img_h, img_w)
             y_att_full_res = spatial_transform(
-                y_att, z_where,
-                (bs * self.args.arch.num_cell ** 2, self.args.data.inp_channel, self.args.data.img_h,
-                 self.args.data.img_w),
-                inverse=True
+                y_att,
+                z_where,
+                (
+                    bs * self.args.arch.num_cell ** 2,
+                    self.args.data.inp_channel,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                ),
+                inverse=True,
             )
-            y = (y_att_full_res * z_pres.view(bs * self.args.arch.num_cell ** 2, 1, 1, 1)). \
-                view(bs, -1, self.args.data.inp_channel, self.args.data.img_h, self.args.data.img_w).sum(dim=1)
+            y = (
+                (
+                    y_att_full_res
+                    * z_pres.view(bs * self.args.arch.num_cell ** 2, 1, 1, 1)
+                )
+                .view(
+                    bs,
+                    -1,
+                    self.args.data.inp_channel,
+                    self.args.data.img_h,
+                    self.args.data.img_w,
+                )
+                .sum(dim=1)
+            )
             y_nobg = y
             alpha_map = y.new_ones(y.size(0), 1, y.size(2), y.size(3))
 
@@ -1392,7 +1804,14 @@ wbox[:, :, -border_width:] = 1
 wbox = wbox.view(1, 3, 42, 42)
 
 
-def visualize(x, z_pres, z_where_scale, z_where_shift, only_bbox=False, phase_only_display_pres=True):
+def visualize(
+    x,
+    z_pres,
+    z_where_scale,
+    z_where_shift,
+    only_bbox=False,
+    phase_only_display_pres=True,
+):
     """
         x: (bs, 3, img_h, img_w)
         z_pres: (bs, 4, 4, 1)
@@ -1405,173 +1824,183 @@ def visualize(x, z_pres, z_where_scale, z_where_shift, only_bbox=False, phase_on
     z_scale = z_where_scale.view(-1, 2)
     z_shift = z_where_shift.view(-1, 2)
     if phase_only_display_pres:
-        bbox = spatial_transform(z_pres * gbox,
-                                 torch.cat((z_scale, z_shift), dim=1),
-                                 torch.Size([bs * num_obj, 3, img_h, img_w]),
-                                 inverse=True)
+        bbox = spatial_transform(
+            z_pres * gbox,
+            torch.cat((z_scale, z_shift), dim=1),
+            torch.Size([bs * num_obj, 3, img_h, img_w]),
+            inverse=True,
+        )
     else:
-        bbox = spatial_transform(z_pres * gbox + (1 - z_pres) * rbox,
-                                 torch.cat((z_scale, z_shift), dim=1),
-                                 torch.Size([bs * num_obj, 3, img_h, img_w]),
-                                 inverse=True)
+        bbox = spatial_transform(
+            z_pres * gbox + (1 - z_pres) * rbox,
+            torch.cat((z_scale, z_shift), dim=1),
+            torch.Size([bs * num_obj, 3, img_h, img_w]),
+            inverse=True,
+        )
 
     if not only_bbox:
-        bbox = (bbox + torch.stack(num_obj * (x,), dim=1).view(-1, 3, img_h, img_w)).clamp(0.0, 1.0)
+        bbox = (
+            bbox + torch.stack(num_obj * (x,), dim=1).view(-1, 3, img_h, img_w)
+        ).clamp(0.0, 1.0)
     return bbox
 
+
 import copy
+
+
 def hyperparam_anneal(args, global_step):
     # args = copy.deepcopy(args)
     # pprint.pprint(args)
-    args.train['global_step'] = global_step
+    args.train["global_step"] = global_step
 
     if args.train.beta_aux_pres_anneal_end_step == 0:
-        args.train['beta_aux_pres'] = args.train.beta_aux_pres_anneal_start_value
+        args.train["beta_aux_pres"] = args.train.beta_aux_pres_anneal_start_value
     else:
-        args.train['beta_aux_pres'] = linear_schedule(
+        args.train["beta_aux_pres"] = linear_schedule(
             global_step,
             args.train.beta_aux_pres_anneal_start_step,
             args.train.beta_aux_pres_anneal_end_step,
             args.train.beta_aux_pres_anneal_start_value,
-            args.train.beta_aux_pres_anneal_end_value
+            args.train.beta_aux_pres_anneal_end_value,
         )
 
     if args.train.beta_aux_where_anneal_end_step == 0:
-        args.train['beta_aux_where'] = args.train.beta_aux_where_anneal_start_value
+        args.train["beta_aux_where"] = args.train.beta_aux_where_anneal_start_value
     else:
-        args.train['beta_aux_where'] = linear_schedule(
+        args.train["beta_aux_where"] = linear_schedule(
             global_step,
             args.train.beta_aux_where_anneal_start_step,
             args.train.beta_aux_where_anneal_end_step,
             args.train.beta_aux_where_anneal_start_value,
-            args.train.beta_aux_where_anneal_end_value
+            args.train.beta_aux_where_anneal_end_value,
         )
 
     if args.train.beta_aux_what_anneal_end_step == 0:
-        args.train['beta_aux_what'] = args.train.beta_aux_what_anneal_start_value
+        args.train["beta_aux_what"] = args.train.beta_aux_what_anneal_start_value
     else:
-        args.train['beta_aux_what'] = linear_schedule(
+        args.train["beta_aux_what"] = linear_schedule(
             global_step,
             args.train.beta_aux_what_anneal_start_step,
             args.train.beta_aux_what_anneal_end_step,
             args.train.beta_aux_what_anneal_start_value,
-            args.train.beta_aux_what_anneal_end_value
+            args.train.beta_aux_what_anneal_end_value,
         )
 
     if args.train.beta_aux_depth_anneal_end_step == 0:
-        args.train['beta_aux_depth'] = args.train.beta_aux_depth_anneal_start_value
+        args.train["beta_aux_depth"] = args.train.beta_aux_depth_anneal_start_value
     else:
-        args.train['beta_aux_depth'] = linear_schedule(
+        args.train["beta_aux_depth"] = linear_schedule(
             global_step,
             args.train.beta_aux_depth_anneal_start_step,
             args.train.beta_aux_depth_anneal_end_step,
             args.train.beta_aux_depth_anneal_start_value,
-            args.train.beta_aux_depth_anneal_end_value
+            args.train.beta_aux_depth_anneal_end_value,
         )
 
     if args.train.beta_aux_global_anneal_end_step == 0:
-        args.train['beta_aux_global'] = args.train.beta_aux_global_anneal_start_value
+        args.train["beta_aux_global"] = args.train.beta_aux_global_anneal_start_value
     else:
-        args.train['beta_aux_global'] = linear_schedule(
+        args.train["beta_aux_global"] = linear_schedule(
             global_step,
             args.train.beta_aux_global_anneal_start_step,
             args.train.beta_aux_global_anneal_end_step,
             args.train.beta_aux_global_anneal_start_value,
-            args.train.beta_aux_global_anneal_end_value
+            args.train.beta_aux_global_anneal_end_value,
         )
 
     if args.train.beta_aux_bg_anneal_end_step == 0:
-        args.train['beta_aux_bg'] = args.train.beta_aux_bg_anneal_start_value
+        args.train["beta_aux_bg"] = args.train.beta_aux_bg_anneal_start_value
     else:
-        args.train['beta_aux_bg'] = linear_schedule(
+        args.train["beta_aux_bg"] = linear_schedule(
             global_step,
             args.train.beta_aux_bg_anneal_start_step,
             args.train.beta_aux_bg_anneal_end_step,
             args.train.beta_aux_bg_anneal_start_value,
-            args.train.beta_aux_bg_anneal_end_value
+            args.train.beta_aux_bg_anneal_end_value,
         )
 
     ########################### split here ###########################
     if args.train.beta_pres_anneal_end_step == 0:
-        args.train['beta_pres'] = args.train.beta_pres_anneal_start_value
+        args.train["beta_pres"] = args.train.beta_pres_anneal_start_value
     else:
-        args.train['beta_pres'] = linear_schedule(
+        args.train["beta_pres"] = linear_schedule(
             global_step,
             args.train.beta_pres_anneal_start_step,
             args.train.beta_pres_anneal_end_step,
             args.train.beta_pres_anneal_start_value,
-            args.train.beta_pres_anneal_end_value
+            args.train.beta_pres_anneal_end_value,
         )
 
     if args.train.beta_where_anneal_end_step == 0:
-        args.train['beta_where'] = args.train.beta_where_anneal_start_value
+        args.train["beta_where"] = args.train.beta_where_anneal_start_value
     else:
-        args.train['beta_where'] = linear_schedule(
+        args.train["beta_where"] = linear_schedule(
             global_step,
             args.train.beta_where_anneal_start_step,
             args.train.beta_where_anneal_end_step,
             args.train.beta_where_anneal_start_value,
-            args.train.beta_where_anneal_end_value
+            args.train.beta_where_anneal_end_value,
         )
 
     if args.train.beta_what_anneal_end_step == 0:
-        args.train['beta_what'] = args.train.beta_what_anneal_start_value
+        args.train["beta_what"] = args.train.beta_what_anneal_start_value
     else:
-        args.train['beta_what'] = linear_schedule(
+        args.train["beta_what"] = linear_schedule(
             global_step,
             args.train.beta_what_anneal_start_step,
             args.train.beta_what_anneal_end_step,
             args.train.beta_what_anneal_start_value,
-            args.train.beta_what_anneal_end_value
+            args.train.beta_what_anneal_end_value,
         )
 
     if args.train.beta_depth_anneal_end_step == 0:
-        args.train['beta_depth'] = args.train.beta_depth_anneal_start_value
+        args.train["beta_depth"] = args.train.beta_depth_anneal_start_value
     else:
-        args.train['beta_depth'] = linear_schedule(
+        args.train["beta_depth"] = linear_schedule(
             global_step,
             args.train.beta_depth_anneal_start_step,
             args.train.beta_depth_anneal_end_step,
             args.train.beta_depth_anneal_start_value,
-            args.train.beta_depth_anneal_end_value
+            args.train.beta_depth_anneal_end_value,
         )
 
     if args.train.beta_global_anneal_end_step == 0:
-        args.train['beta_global'] = args.train.beta_global_anneal_start_value
+        args.train["beta_global"] = args.train.beta_global_anneal_start_value
     else:
-        args.train['beta_global'] = linear_schedule(
+        args.train["beta_global"] = linear_schedule(
             global_step,
             args.train.beta_global_anneal_start_step,
             args.train.beta_global_anneal_end_step,
             args.train.beta_global_anneal_start_value,
-            args.train.beta_global_anneal_end_value
+            args.train.beta_global_anneal_end_value,
         )
 
     if args.train.tau_pres_anneal_end_step == 0:
-        args.train['tau_pres'] = args.train.tau_pres_anneal_start_value
+        args.train["tau_pres"] = args.train.tau_pres_anneal_start_value
     else:
-        args.train['tau_pres'] = linear_schedule(
+        args.train["tau_pres"] = linear_schedule(
             global_step,
             args.train.tau_pres_anneal_start_step,
             args.train.tau_pres_anneal_end_step,
             args.train.tau_pres_anneal_start_value,
-            args.train.tau_pres_anneal_end_value
+            args.train.tau_pres_anneal_end_value,
         )
 
     if args.train.beta_bg_anneal_end_step == 0:
-        args.train['beta_bg'] = args.train.beta_bg_anneal_start_value
+        args.train["beta_bg"] = args.train.beta_bg_anneal_start_value
     else:
-        args.train['beta_bg'] = linear_schedule(
+        args.train["beta_bg"] = linear_schedule(
             global_step,
             args.train.beta_bg_anneal_start_step,
             args.train.beta_bg_anneal_end_step,
             args.train.beta_bg_anneal_start_value,
-            args.train.beta_bg_anneal_end_value
+            args.train.beta_bg_anneal_end_value,
         )
     # print(args.train)
     # import ipdb; ipdb.set_trace()
     # print(args.train.global_step)
     return args
+
 
 def linear_schedule(step, start_step, end_step, start_value, end_value):
     if start_step < step < end_step:
@@ -1584,7 +2013,7 @@ def linear_schedule(step, start_step, end_step, start_value, end_value):
     return x
 
 
-CONFIG_YAML = '''exp_name: ''
+CONFIG_YAML = """exp_name: ''
 data_dir: ''
 summary_dir: ''
 model_dir: ''
@@ -1772,10 +2201,12 @@ train:
   bg_alpha_curriculum_value: 0.9
 
   seed: 666
-'''
+"""
 import yaml
 import io
 from prodict import Prodict
+
 arrow_args = Prodict.from_dict(yaml.safe_load(io.StringIO(CONFIG_YAML)))
 import pprint
+
 pprint.pprint(arrow_args)

@@ -18,7 +18,7 @@ class ConvEncoder(nn.Sequential):
             nn.Flatten(),
             nn.Linear(64, 128),
             nn.ReLU(),
-            nn.Linear(128, 2 * z_dim)
+            nn.Linear(128, 2 * z_dim),
         )
 
     def forward(self, x):
@@ -49,8 +49,11 @@ class BroadcastDecoder(nn.Sequential):
         x = x.view(x.size(0), -1, 1, 1).repeat(1, 1, h, w)
         hs = torch.linspace(-1, 1, h, device=x.device, dtype=x.dtype)
         ws = torch.linspace(-1, 1, w, device=x.device, dtype=x.dtype)
-        c = torch.stack(torch.meshgrid(hs, ws)).view(1, 2, h, w).repeat(
-            x.size(0), 1, 1, 1)
+        c = (
+            torch.stack(torch.meshgrid(hs, ws))
+            .view(1, 2, h, w)
+            .repeat(x.size(0), 1, 1, 1)
+        )
         x = torch.cat([x, c], dim=1)
         x = super(BroadcastDecoder, self).forward(x)
         if sigmoid:

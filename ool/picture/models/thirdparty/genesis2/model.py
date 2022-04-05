@@ -32,7 +32,7 @@ class ConvGNReLU(nn.Sequential):
         super(ConvGNReLU, self).__init__(
             nn.Conv2d(nin, nout, kernel, stride, padding, bias=False),
             nn.GroupNorm(groups, nout),
-            nn.ReLU(inplace=True)
+            nn.ReLU(inplace=True),
         )
 
 
@@ -41,7 +41,7 @@ class BroadcastLayer(nn.Module):
         super(BroadcastLayer, self).__init__()
         self.dim = dim
         c = torch.linspace(-1, 1, dim)
-        self.register_buffer('coords', torch.stack(torch.meshgrid(c, c))[None])
+        self.register_buffer("coords", torch.stack(torch.meshgrid(c, c))[None])
 
     def forward(self, x):
         b_sz = x.size(0)
@@ -55,9 +55,9 @@ class BroadcastLayer(nn.Module):
 
 
 class UNet(nn.Module):
-
-    def __init__(self, num_blocks, img_size=64,
-                 filter_start=32, in_chnls=4, out_chnls=1):
+    def __init__(
+        self, num_blocks, img_size=64, filter_start=32, in_chnls=4, out_chnls=1
+    ):
         super(UNet, self).__init__()
         c = filter_start
         if num_blocks == 4:
@@ -87,9 +87,12 @@ class UNet(nn.Module):
         self.featuremap_size = img_size // 2 ** (num_blocks - 1)
         self.mlp = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(2 * c * self.featuremap_size ** 2, 128), nn.ReLU(),
-            nn.Linear(128, 128), nn.ReLU(),
-            nn.Linear(128, 2 * c * self.featuremap_size ** 2), nn.ReLU()
+            nn.Linear(2 * c * self.featuremap_size ** 2, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 2 * c * self.featuremap_size ** 2),
+            nn.ReLU(),
         )
         if out_chnls > 0:
             self.final_conv = nn.Conv2d(c, out_chnls, 1)
@@ -106,18 +109,17 @@ class UNet(nn.Module):
             act = block(x_down[-1])
             skip.append(act)
             if i < len(self.down) - 1:
-                act = F.interpolate(act, scale_factor=0.5, mode='nearest')
+                act = F.interpolate(act, scale_factor=0.5, mode="nearest")
             x_down.append(act)
         # FC
         x_up = self.mlp(x_down[-1])
-        x_up = x_up.view(batch_size, -1,
-                         self.featuremap_size, self.featuremap_size)
+        x_up = x_up.view(batch_size, -1, self.featuremap_size, self.featuremap_size)
         # Up
         for i, block in enumerate(self.up):
             features = torch.cat([x_up, skip[-1 - i]], dim=1)
             x_up = block(features)
             if i < len(self.up) - 1:
-                x_up = F.interpolate(x_up, scale_factor=2.0, mode='nearest')
+                x_up = F.interpolate(x_up, scale_factor=2.0, mode="nearest")
         return self.final_conv(x_up), None
 
 
@@ -141,10 +143,16 @@ class SemiConv(nn.Conv2d):
     def __init__(self, in_c, out_ch, size):
         super(SemiConv, self).__init__(in_c, out_ch, 1)
         self.gate = nn.Parameter(torch.zeros(1), requires_grad=True)
-        self.register_buffer('uv',
-                             torch.cat([torch.zeros(out_ch - 2, size, size),
-                                        torch.stack(torch.meshgrid(*([torch.linspace(-1, 1, size)] * 2)))])[None],
-                             persistent=False)
+        self.register_buffer(
+            "uv",
+            torch.cat(
+                [
+                    torch.zeros(out_ch - 2, size, size),
+                    torch.stack(torch.meshgrid(*([torch.linspace(-1, 1, size)] * 2))),
+                ]
+            )[None],
+            persistent=False,
+        )
 
     def forward(self, input):
         x = self.gate * super(SemiConv, self).forward(input)
@@ -179,20 +187,26 @@ def squared_distance(ea, eb):
 
 
 class InstanceColouringSBP(nn.Module):
-    def __init__(self, img_size, kernel='gaussian',
-                 colour_dim=8, K_steps=None, feat_dim=None,
-                 semiconv=True):
+    def __init__(
+        self,
+        img_size,
+        kernel="gaussian",
+        colour_dim=8,
+        K_steps=None,
+        feat_dim=None,
+        semiconv=True,
+    ):
         super(InstanceColouringSBP, self).__init__()
         # Config
         self.img_size = img_size
         self.kernel = kernel
         self.colour_dim = colour_dim
         # Initialise kernel sigma
-        if self.kernel == 'laplacian':
+        if self.kernel == "laplacian":
             sigma_init = 1.0 / (np.sqrt(K_steps) * np.log(2))
-        elif self.kernel == 'gaussian':
+        elif self.kernel == "gaussian":
             sigma_init = 1.0 / (K_steps * np.log(2))
-        elif self.kernel == 'epanechnikov':
+        elif self.kernel == "epanechnikov":
             sigma_init = 2.0 / K_steps
         else:
             return ValueError("No valid kernel.")
@@ -203,8 +217,9 @@ class InstanceColouringSBP(nn.Module):
         else:
             self.colour_head = nn.Conv2d(feat_dim, self.colour_dim, 1)
 
-    def forward(self, features, steps_to_run, debug=False,
-                dynamic_K=False, *args, **kwargs):
+    def forward(
+        self, features, steps_to_run, debug=False, dynamic_K=False, *args, **kwargs
+    ):
         batch_size = features.size(0)
         if dynamic_K:
             assert batch_size == 1
@@ -217,14 +232,25 @@ class InstanceColouringSBP(nn.Module):
         # Sample from uniform to select random pixels as seeds
         # rand_pixel = torch.empty(batch_size, 1, *colour.shape[2:])
         # rand_pixel = rand_pixel.uniform_()
-        rand_pixel = torch.rand(batch_size, 1, *colour.shape[2:], device=features.device)
+        rand_pixel = torch.rand(
+            batch_size, 1, *colour.shape[2:], device=features.device
+        )
         # Run SBP
         seed_list = []
         log_m_k = []
-        log_s_k = [torch.zeros(batch_size, 1, self.img_size, self.img_size, device=features.device)]
+        log_s_k = [
+            torch.zeros(
+                batch_size, 1, self.img_size, self.img_size, device=features.device
+            )
+        ]
         for step in range(steps_to_run):
             # Determine seed
-            scope = F.interpolate(log_s_k[step].exp(), size=colour.shape[2:], mode='bilinear', align_corners=False)
+            scope = F.interpolate(
+                log_s_k[step].exp(),
+                size=colour.shape[2:],
+                mode="bilinear",
+                align_corners=False,
+            )
             pixel_probs = rand_pixel * scope
             rand_max = pixel_probs.flatten(2).argmax(2).flatten()
             # --TODO(martin): parallelise this--
@@ -235,13 +261,13 @@ class InstanceColouringSBP(nn.Module):
             seed_list.append(seed)
             # Compute masks
             # Note the distance here is in channel-wise
-            if self.kernel == 'laplacian':
+            if self.kernel == "laplacian":
                 distance = euclidian_distance(colour, seed)  # [B, H, W]
-                alpha = torch.exp(- distance / self.log_sigma.exp())
-            elif self.kernel == 'gaussian':
+                alpha = torch.exp(-distance / self.log_sigma.exp())
+            elif self.kernel == "gaussian":
                 distance = squared_distance(colour, seed)  # [B, H, W]
-                alpha = torch.exp(- distance / self.log_sigma.exp())
-            elif self.kernel == 'epanechnikov':
+                alpha = torch.exp(-distance / self.log_sigma.exp())
+            elif self.kernel == "epanechnikov":
                 distance = squared_distance(colour, seed)  # [B, H, W]
                 alpha = (1 - distance / self.log_sigma.exp()).relu()
             else:
@@ -266,7 +292,7 @@ class InstanceColouringSBP(nn.Module):
         # Set mask equal to scope for last step
         log_m_k.append(log_s_k[-1])
         # Accumulate stats
-        stats = {'colour': colour, 'delta': delta, 'seeds': seed_list}
+        stats = {"colour": colour, "delta": delta, "seeds": seed_list}
         return log_m_k, log_s_k, stats
 
 
@@ -284,8 +310,15 @@ def genesis_x_loss(x, log_m_k, x_r_k, std, pixel_wise=False):
         return err_ppc.sum(dim=(1, 2, 3))
 
 
-def genesis_mask_latent_loss(q_zm_0_k, zm_0_k, zm_k_k=None, ldj_k=None,
-                             prior_lstm=None, prior_linear=None, debug=False):
+def genesis_mask_latent_loss(
+    q_zm_0_k,
+    zm_0_k,
+    zm_k_k=None,
+    ldj_k=None,
+    prior_lstm=None,
+    prior_linear=None,
+    debug=False,
+):
     num_steps = len(zm_0_k)
     batch_size = zm_0_k[0].size(0)
     latent_dim = zm_0_k[0].size(1)
@@ -296,8 +329,7 @@ def genesis_mask_latent_loss(q_zm_0_k, zm_0_k, zm_k_k=None, ldj_k=None,
     if prior_lstm is not None and prior_linear is not None:
         # zm_seq shape: (att_steps-2, batch_size, ldim)
         # Do not need the last element in z_k
-        zm_seq = torch.cat(
-            [zm.view(1, batch_size, -1) for zm in zm_k_k[:-1]], dim=0)
+        zm_seq = torch.cat([zm.view(1, batch_size, -1) for zm in zm_k_k[:-1]], dim=0)
         # lstm_out shape: (att_steps-2, batch_size, state_size)
         # Note: recurrent state is handled internally by LSTM
         lstm_out, _ = prior_lstm(zm_seq)
@@ -315,8 +347,11 @@ def genesis_mask_latent_loss(q_zm_0_k, zm_0_k, zm_k_k=None, ldj_k=None,
         # Autoregressive prior for later steps
         for mean, std in zip(mu_k, sigma_k):
             # Remember to remove unit dimension at dim=0
-            p_zm_k += [dist.Normal(mean.view(batch_size, latent_dim),
-                                   std.view(batch_size, latent_dim))]
+            p_zm_k += [
+                dist.Normal(
+                    mean.view(batch_size, latent_dim), std.view(batch_size, latent_dim)
+                )
+            ]
         # Sanity checks
         if debug:
             assert zm_seq.size(0) == num_steps - 1
@@ -343,11 +378,11 @@ def genesis_mask_latent_loss(q_zm_0_k, zm_0_k, zm_k_k=None, ldj_k=None,
 
 
 def monet_get_mask_recon_stack(m_r_logits_k, prior_mode, log):
-    if prior_mode == 'softmax':
+    if prior_mode == "softmax":
         if log:
             return F.log_softmax(torch.stack(m_r_logits_k, dim=4), dim=4)
         return F.softmax(torch.stack(m_r_logits_k, dim=4), dim=4)
-    elif prior_mode == 'scope':
+    elif prior_mode == "scope":
         log_m_r_k = []
         log_s = torch.zeros_like(m_r_logits_k[0])
         for step, logits in enumerate(m_r_logits_k):
@@ -380,30 +415,29 @@ def monet_kl_m_loss(log_m_k, log_m_r_k, debug=False):
 
 
 class GenesisV2(nn.Module):
-    shortname='g2'
-    def __init__(self,
-                 feat_dim=64,
-                 kernel='gaussian',
-                 semiconv=True,
-                 dynamic_K=False,
-                 klm_loss=False,
-                 detach_mr_in_klm=True,
+    shortname = "g2"
 
-                 g_goal=0.5655,
-                 g_lr=1e-5,
-                 g_alpha=0.99,
-                 g_init=1.0,
-                 g_min=1e-10,
-                 g_speedup=10.,
-
-                 K_steps=11,
-                 img_size=128, #Clevr
-                 autoreg_prior=True,
-                 pixel_bound=True,
-                 pixel_std=0.7,
-
-                 debug=False,
-                 ):
+    def __init__(
+        self,
+        feat_dim=64,
+        kernel="gaussian",
+        semiconv=True,
+        dynamic_K=False,
+        klm_loss=False,
+        detach_mr_in_klm=True,
+        g_goal=0.5655,
+        g_lr=1e-5,
+        g_alpha=0.99,
+        g_init=1.0,
+        g_min=1e-10,
+        g_speedup=10.0,
+        K_steps=11,
+        img_size=128,  # Clevr
+        autoreg_prior=True,
+        pixel_bound=True,
+        pixel_std=0.7,
+        debug=False,
+    ):
         super(GenesisV2, self).__init__()
         # Configuration
         self.K_steps = K_steps
@@ -419,36 +453,45 @@ class GenesisV2(nn.Module):
             img_size=img_size,
             filter_start=min(feat_dim, 64),
             in_chnls=3,
-            out_chnls=-1)
+            out_chnls=-1,
+        )
         self.att_process = InstanceColouringSBP(
             img_size=img_size,
             kernel=kernel,
             colour_dim=8,
             K_steps=self.K_steps,
             feat_dim=feat_dim,
-            semiconv=semiconv)
+            semiconv=semiconv,
+        )
         self.seg_head = ConvGNReLU(feat_dim, feat_dim, 3, 1, 1)
         self.feat_head = nn.Sequential(
             ConvGNReLU(feat_dim, feat_dim, 3, 1, 1),
-            nn.Conv2d(feat_dim, 2 * feat_dim, 1))
+            nn.Conv2d(feat_dim, 2 * feat_dim, 1),
+        )
         self.z_head = nn.Sequential(
             nn.LayerNorm(2 * feat_dim),
             nn.Linear(2 * feat_dim, 2 * feat_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(2 * feat_dim, 2 * feat_dim))
+            nn.Linear(2 * feat_dim, 2 * feat_dim),
+        )
         # Decoder
         c = feat_dim
         self.decoder_module = nn.Sequential(
             BroadcastLayer(img_size // 16),
             nn.ConvTranspose2d(feat_dim + 2, c, 5, 2, 2, 1),
-            nn.GroupNorm(8, c), nn.ReLU(inplace=True),
+            nn.GroupNorm(8, c),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(c, c, 5, 2, 2, 1),
-            nn.GroupNorm(8, c), nn.ReLU(inplace=True),
+            nn.GroupNorm(8, c),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(c, min(c, 64), 5, 2, 2, 1),
-            nn.GroupNorm(8, min(c, 64)), nn.ReLU(inplace=True),
+            nn.GroupNorm(8, min(c, 64)),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(min(c, 64), min(c, 64), 5, 2, 2, 1),
-            nn.GroupNorm(8, min(c, 64)), nn.ReLU(inplace=True),
-            nn.Conv2d(min(c, 64), 4, 1))
+            nn.GroupNorm(8, min(c, 64)),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(min(c, 64), 4, 1),
+        )
         # --- Prior ---
         self.autoreg_prior = autoreg_prior
         self.prior_lstm, self.prior_linear = None, None
@@ -458,8 +501,14 @@ class GenesisV2(nn.Module):
         # --- Output pixel distribution ---
         # assert pixel_std1 == cfg.pixel_std2
         self.std = pixel_std
-        self.geco = GECO(g_goal * 3 * img_size**2,  g_lr * (64**2 / img_size**2),
-                         g_alpha, g_init, g_min, g_speedup)
+        self.geco = GECO(
+            g_goal * 3 * img_size ** 2,
+            g_lr * (64 ** 2 / img_size ** 2),
+            g_alpha,
+            g_init,
+            g_min,
+            g_speedup,
+        )
 
     def forward(self, x):
         batch_size, _, H, W = x.shape
@@ -476,7 +525,8 @@ class GenesisV2(nn.Module):
                 att_stats, log_s_k = None, None
                 for f in torch.split(enc_feat, 1, dim=0):
                     log_m_k_b, _, _ = self.att_process(
-                        self.seg_head(f), self.K_steps - 1, dynamic_K=True)
+                        self.seg_head(f), self.K_steps - 1, dynamic_K=True
+                    )
                     for step in range(self.K_steps):
                         if step < len(log_m_k_b):
                             log_m_k[step].append(log_m_k_b[step])
@@ -488,10 +538,12 @@ class GenesisV2(nn.Module):
                     assert len(log_m_k) == self.K_steps
             else:
                 log_m_k, log_s_k, att_stats = self.att_process(
-                    self.seg_head(enc_feat), self.K_steps - 1, dynamic_K=True)
+                    self.seg_head(enc_feat), self.K_steps - 1, dynamic_K=True
+                )
         else:
             log_m_k, log_s_k, att_stats = self.att_process(
-                self.seg_head(enc_feat), self.K_steps - 1, dynamic_K=False)
+                self.seg_head(enc_feat), self.K_steps - 1, dynamic_K=False
+            )
             if self.debug:
                 assert len(log_m_k) == self.K_steps
 
@@ -507,40 +559,49 @@ class GenesisV2(nn.Module):
             # Posterior
             mu, sigma_ps = self.z_head(obj_feat).chunk(2, dim=1)
             # Note: Not sure why sigma needs to biased by 0.5 here; leaving though
-            sigma = F.softplus(sigma_ps + .5) + 1e-8
+            sigma = F.softplus(sigma_ps + 0.5) + 1e-8
             q_z = dist.Normal(mu, sigma)
             z = q_z.rsample()
-            comp_stats['mu_k'].append(mu)
-            comp_stats['sigma_k'].append(sigma)
-            comp_stats['z_k'].append(z)
-            comp_stats['q_z_k'].append(q_z)
+            comp_stats["mu_k"].append(mu)
+            comp_stats["sigma_k"].append(sigma)
+            comp_stats["z_k"].append(z)
+            comp_stats["q_z_k"].append(q_z)
 
         # --- Decode latents ---
-        recon, x_r_k, log_m_r_k = self.decode_latents(comp_stats['z_k'])
+        recon, x_r_k, log_m_r_k = self.decode_latents(comp_stats["z_k"])
 
         # --- Loss terms ---
         losses = {}
         # -- Reconstruction loss
-        losses['err'] = genesis_x_loss(x, log_m_r_k, x_r_k, self.std)
+        losses["err"] = genesis_x_loss(x, log_m_r_k, x_r_k, self.std)
         mx_r_k = [x * logm.exp() for x, logm in zip(x_r_k, log_m_r_k)]
         # -- Optional: Attention mask loss
         if self.klm_loss:
             if self.detach_mr_in_klm:
                 log_m_r_k = [m.detach() for m in log_m_r_k]
-            losses['kl_m'] = monet_kl_m_loss(
-                log_m_k=log_m_k, log_m_r_k=log_m_r_k, debug=self.debug)
+            losses["kl_m"] = monet_kl_m_loss(
+                log_m_k=log_m_k, log_m_r_k=log_m_r_k, debug=self.debug
+            )
         # -- Component KL
-        losses['kl_l_k'], p_z_k = genesis_mask_latent_loss(
-            comp_stats['q_z_k'], comp_stats['z_k'],
-            prior_lstm=self.prior_lstm, prior_linear=self.prior_linear,
-            debug=self.debug)
+        losses["kl_l_k"], p_z_k = genesis_mask_latent_loss(
+            comp_stats["q_z_k"],
+            comp_stats["z_k"],
+            prior_lstm=self.prior_lstm,
+            prior_linear=self.prior_linear,
+            debug=self.debug,
+        )
 
         # Track quantities of interest
         stats = dict(
-            recon=recon, log_m_k=log_m_k, log_s_k=log_s_k, x_r_k=x_r_k,
-            log_m_r_k=log_m_r_k, mx_r_k=mx_r_k,
+            recon=recon,
+            log_m_k=log_m_k,
+            log_s_k=log_s_k,
+            x_r_k=x_r_k,
+            log_m_r_k=log_m_r_k,
+            mx_r_k=mx_r_k,
             instance_seg=torch.argmax(torch.cat(log_m_k, dim=1), dim=1),
-            instance_seg_r=torch.argmax(torch.cat(log_m_r_k, dim=1), dim=1))
+            instance_seg_r=torch.argmax(torch.cat(log_m_r_k, dim=1), dim=1),
+        )
 
         # Sanity checks
         if self.debug:
@@ -550,35 +611,35 @@ class GenesisV2(nn.Module):
             check_log_masks(log_m_k)
             check_log_masks(log_m_r_k)
 
-        recon_loss = losses['err'].mean()
+        recon_loss = losses["err"].mean()
         kl_m, kl_l = torch.tensor(0), torch.tensor(0)
         # -- KL stage 1
-        if 'kl_m' in losses:
-            kl_m = losses['kl_m'].mean(0)
-        elif 'kl_m_k' in losses:
-            kl_m = torch.stack(losses['kl_m_k'], dim=1).mean(dim=0).sum()
+        if "kl_m" in losses:
+            kl_m = losses["kl_m"].mean(0)
+        elif "kl_m_k" in losses:
+            kl_m = torch.stack(losses["kl_m_k"], dim=1).mean(dim=0).sum()
         # -- KL stage 2
-        if 'kl_l' in losses:
-            kl_l = losses['kl_l'].mean(0)
-        elif 'kl_l_k' in losses:
-            kl_l = torch.stack(losses['kl_l_k'], dim=1).mean(dim=0).sum()
+        if "kl_l" in losses:
+            kl_l = losses["kl_l"].mean(0)
+        elif "kl_l_k" in losses:
+            kl_l = torch.stack(losses["kl_l_k"], dim=1).mean(dim=0).sum()
         kl = (kl_l + kl_m).mean(0)
 
         elbo = recon_loss + kl
         loss = self.geco.loss(recon_loss, kl)
 
         ret = {
-            'canvas': recon,
-            'loss': loss,
-            'elbo': elbo,
-            'rec_loss': recon_loss,
-            'kl': kl,
-            'beta': self.geco.beta,
-            'layers': {
-                'mask': torch.stack(log_m_r_k, dim=1).exp(),
-                'patch': torch.stack(x_r_k, dim=1),
-                'other_mask': torch.stack(log_m_k, dim=1).exp()
-            }
+            "canvas": recon,
+            "loss": loss,
+            "elbo": elbo,
+            "rec_loss": recon_loss,
+            "kl": kl,
+            "beta": self.geco.beta,
+            "layers": {
+                "mask": torch.stack(log_m_r_k, dim=1).exp(),
+                "patch": torch.stack(x_r_k, dim=1),
+                "other_mask": torch.stack(log_m_k, dim=1).exp(),
+            },
         }
 
         return ret
@@ -594,8 +655,7 @@ class GenesisV2(nn.Module):
         if self.pixel_bound:
             x_r_k = [torch.sigmoid(item) for item in x_r_k]
         # --- Reconstruct masks ---
-        log_m_r_stack = monet_get_mask_recon_stack(
-            m_r_logits_k, 'softmax', log=True)
+        log_m_r_stack = monet_get_mask_recon_stack(m_r_logits_k, "softmax", log=True)
         log_m_r_k = torch.split(log_m_r_stack, 1, dim=4)
         log_m_r_k = [m[:, :, :, :, 0] for m in log_m_r_k]
         # --- Reconstruct input image by marginalising (aka summing) ---
@@ -615,7 +675,8 @@ class GenesisV2(nn.Module):
             for k in range(1, K_steps):
                 # TODO(martin): reuse code from forward method?
                 lstm_out, state = self.prior_lstm(
-                    z_k[-1].view(1, batch_size, -1), state)
+                    z_k[-1].view(1, batch_size, -1), state
+                )
                 linear_out = self.prior_linear(lstm_out)
                 linear_out = torch.chunk(linear_out, 2, dim=2)
                 linear_out = [item.squeeze(0) for item in linear_out]
@@ -626,24 +687,30 @@ class GenesisV2(nn.Module):
                 # TODO: Sigmoid saturates outside of (-88, 16) (0. gradients, 0. or 1. output).
                 # TODO: Having a positive target +4.0 seems to somewhat reduce that.
                 sigma = torch.sigmoid(linear_out[1] + 4.0) + 1e-4
-                p_z = dist.Normal(mu.view([batch_size, self.feat_dim]),
-                                  sigma.view([batch_size, self.feat_dim]))
+                p_z = dist.Normal(
+                    mu.view([batch_size, self.feat_dim]),
+                    sigma.view([batch_size, self.feat_dim]),
+                )
                 z_k.append(p_z.sample())
         else:
             p_z = dist.Normal(0, 1)
-            z_k = [p_z.sample([batch_size, self.feat_dim])
-                   for _ in range(K_steps)]
+            z_k = [p_z.sample([batch_size, self.feat_dim]) for _ in range(K_steps)]
 
         # Decode latents
         recon, x_r_k, log_m_r_k = self.decode_latents(z_k)
 
-        stats = dict(x_k=x_r_k, log_m_k=log_m_r_k, mx_k=[x * m.exp() for x, m in zip(x_r_k, log_m_r_k)])
+        stats = dict(
+            x_k=x_r_k,
+            log_m_k=log_m_r_k,
+            mx_k=[x * m.exp() for x, m in zip(x_r_k, log_m_r_k)],
+        )
         return recon, stats
 
 
 class GECO(nn.Module):
-    def __init__(self, goal, step_size, alpha=0.99, beta_init=1.0,
-                 beta_min=1e-10, speedup=None):
+    def __init__(
+        self, goal, step_size, alpha=0.99, beta_init=1.0, beta_min=1e-10, speedup=None
+    ):
         super(GECO, self).__init__()
         self.err_ema = None
         # self.goal = goal
@@ -653,14 +720,14 @@ class GECO(nn.Module):
         # self.beta_min = torch.tensor(beta_min)
         # self.beta_max = torch.tensor(1e10)
         # self.speedup = speedup
-        self.register_buffer('goal', torch.tensor(goal))
-        self.register_buffer('step_size', torch.tensor(step_size))
-        self.register_buffer('alpha', torch.tensor(alpha))
-        self.register_buffer('beta', torch.tensor(beta_init))
-        self.register_buffer('beta_min', torch.tensor(beta_min))
-        self.register_buffer('beta_max',  torch.tensor(1e10))
+        self.register_buffer("goal", torch.tensor(goal))
+        self.register_buffer("step_size", torch.tensor(step_size))
+        self.register_buffer("alpha", torch.tensor(alpha))
+        self.register_buffer("beta", torch.tensor(beta_init))
+        self.register_buffer("beta_min", torch.tensor(beta_min))
+        self.register_buffer("beta_max", torch.tensor(1e10))
         if speedup is not None:
-            self.register_buffer('speedup', torch.tensor(speedup))
+            self.register_buffer("speedup", torch.tensor(speedup))
 
     def to_cuda(self):
         self.beta = self.beta.cuda()
@@ -675,8 +742,8 @@ class GECO(nn.Module):
             if self.err_ema is None:
                 self.err_ema = err
             else:
-                self.err_ema = (1.0-self.alpha)*err + self.alpha*self.err_ema
-            constraint = (self.goal - self.err_ema)
+                self.err_ema = (1.0 - self.alpha) * err + self.alpha * self.err_ema
+            constraint = self.goal - self.err_ema
             if self.speedup is not None and constraint.item() > 0:
                 factor = torch.exp(self.speedup * self.step_size * constraint)
             else:

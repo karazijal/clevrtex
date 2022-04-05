@@ -2,8 +2,10 @@ from collections import defaultdict
 
 import torch
 
+
 class LogInValMixin:
     """Little helper when computing val metrics on training data"""
+
     def __int__(self):
         self.__log_in_val_dict = defaultdict(list)
 
@@ -22,4 +24,3 @@ class LogInValMixin:
 
     def on_validation_epoch_start(self) -> None:
         self.__process_all_log_in_val()
-

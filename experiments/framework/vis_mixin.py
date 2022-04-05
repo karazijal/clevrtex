@@ -14,27 +14,30 @@ from PIL import Image, ImageFont, ImageDraw
 
 FNT = ImageFont.truetype("dejavu/DejaVuSansMono.ttf", 7)
 CMAPSPEC = {
-    'cmap': ListedColormap(
-        ['black',
-         'red',
-         'green',
-         'blue',
-         'yellow'] +
-        list(itertools.chain.from_iterable(itertools.chain.from_iterable(zip(
-            [get_cmap('tab20b')(i) for i in range(i, 20, 4)],
-            [get_cmap('tab20c')(i) for i in range(i, 20, 4)]
-        )) for i in range(4))) +
-        ['cyan',
-         'magenta'] +
-        [get_cmap('Set3')(i) for i in range(12)] +
-        ['white'],
-        name='SemSegMap'),
-    'vmin': 0,
-    'vmax': 13
+    "cmap": ListedColormap(
+        ["black", "red", "green", "blue", "yellow"]
+        + list(
+            itertools.chain.from_iterable(
+                itertools.chain.from_iterable(
+                    zip(
+                        [get_cmap("tab20b")(i) for i in range(i, 20, 4)],
+                        [get_cmap("tab20c")(i) for i in range(i, 20, 4)],
+                    )
+                )
+                for i in range(4)
+            )
+        )
+        + ["cyan", "magenta"]
+        + [get_cmap("Set3")(i) for i in range(12)]
+        + ["white"],
+        name="SemSegMap",
+    ),
+    "vmin": 0,
+    "vmax": 13,
 }
 
-class SpatialVisMixin:
 
+class SpatialVisMixin:
     def log_as_fig(self, img, name, zeroone=True, colorbar=False, **kwargs):
         fig = plt.figure()
         img = img[0].detach().cpu()
@@ -42,7 +45,7 @@ class SpatialVisMixin:
             img[0, 0] = 1.0
             img[-1, -1] = 0.0
         plt.imshow(img, **kwargs)
-        plt.axis('off')
+        plt.axis("off")
         if colorbar:
             plt.colorbar()
         self.logger.experiment.add_figure(name, fig, self.current_epoch)
@@ -59,15 +62,27 @@ class SpatialVisMixin:
         return img
 
     @torch.no_grad()
-    def log_recons(self, input, output, patches, masks, background=None, where=None, pres=None, depth=None, prefix=''):
-        if not self.trainer.is_global_zero: return
+    def log_recons(
+        self,
+        input,
+        output,
+        patches,
+        masks,
+        background=None,
+        where=None,
+        pres=None,
+        depth=None,
+        prefix="",
+    ):
+        if not self.trainer.is_global_zero:
+            return
         vis_imgs = []
         img = self._to_img(input)
         vis_imgs.extend(img)
         omg = self._to_img(output, lim=len(img))
         vis_imgs.extend(omg)
 
-        if background is not None and not torch.all(background == 0.):
+        if background is not None and not torch.all(background == 0.0):
             bg = self._to_img(background, lim=len(img))
             vis_imgs.extend(bg)
 
@@ -76,8 +91,8 @@ class SpatialVisMixin:
             depth = depth.detach().cpu().numpy()
             pres = pres.detach().cpu().to(torch.uint8).numpy()
 
-        masks = masks[:len(img)]
-        patches = patches[:len(img)]
+        masks = masks[: len(img)]
+        patches = patches[: len(img)]
         ms = masks * patches
         for sid in range(patches.size(1)):
             # p = (patches[:len(img), sid].clamp(0., 1.) * 255.).to(torch.uint8).detach().cpu()
@@ -92,8 +107,12 @@ class SpatialVisMixin:
                             img_to_draw = Image.fromarray(m[i].permute(1, 2, 0).numpy())
                             draw = ImageDraw.Draw(img_to_draw)
                             text = f"{where[i, sid][0]:.2f} {where[i, sid][1]:.2f}\n{where[i, sid][2]:.2f} {where[i, sid][3]:.2f}\n{depth[i, sid][0]:.2f}"
-                            draw.multiline_text((2, 2), text, font=FNT, fill=(0, 255, 0, 128), spacing=2)
-                            m_hat.append(torch.from_numpy(np.array(img_to_draw)).permute(2, 0, 1))
+                            draw.multiline_text(
+                                (2, 2), text, font=FNT, fill=(0, 255, 0, 128), spacing=2
+                            )
+                            m_hat.append(
+                                torch.from_numpy(np.array(img_to_draw)).permute(2, 0, 1)
+                            )
                         else:
                             m[i, 0, :2, :2] = 0
                             m[i, 1, :2, :2] = 255
@@ -104,20 +123,30 @@ class SpatialVisMixin:
             else:
                 m_hat.extend(m)
             vis_imgs.extend(m_hat)
-        grid = tv.utils.make_grid(vis_imgs, pad_value=128, nrow=len(img), padding=1).detach().cpu()
-        self.logger.experiment.add_image(prefix + 'recon', grid, self.current_epoch)
+        grid = (
+            tv.utils.make_grid(vis_imgs, pad_value=128, nrow=len(img), padding=1)
+            .detach()
+            .cpu()
+        )
+        self.logger.experiment.add_image(prefix + "recon", grid, self.current_epoch)
 
     @torch.no_grad()
-    def log_slots(self, slots, name='slots'):
-        if not self.trainer.is_global_zero: return
+    def log_slots(self, slots, name="slots"):
+        if not self.trainer.is_global_zero:
+            return
         m = self._to_img(slots)
         m = m.view(-1, 3, *slots.shape[-2:])
-        grid = tv.utils.make_grid(m, pad_value=128, nrow=len(slots), padding=1).detach().cpu()
+        grid = (
+            tv.utils.make_grid(m, pad_value=128, nrow=len(slots), padding=1)
+            .detach()
+            .cpu()
+        )
         self.logger.experiment.add_image(name, grid, self.current_epoch)
 
     @torch.no_grad()
-    def log_imgs_grid(self, input, *imgs, prefix=''):
-        if not self.trainer.is_global_zero: return
+    def log_imgs_grid(self, input, *imgs, prefix=""):
+        if not self.trainer.is_global_zero:
+            return
         viss = []
         img = self._to_img(input)
         viss.append(img)
@@ -130,11 +159,12 @@ class SpatialVisMixin:
         nrow = len(viss)
         nrow = (16 // nrow) * nrow
         grid = tv.utils.make_grid(vis, pad_value=128, nrow=nrow).detach().cpu()
-        self.logger.experiment.add_image(prefix + 'outputs', grid, self.current_epoch)
+        self.logger.experiment.add_image(prefix + "outputs", grid, self.current_epoch)
 
     @torch.no_grad()
-    def log_images(self, input, output, bboxes=None, pres=None, prefix=''):
-        if not self.trainer.is_global_zero: return
+    def log_images(self, input, output, bboxes=None, pres=None, prefix=""):
+        if not self.trainer.is_global_zero:
+            return
         vis_imgs = []
         img = self._to_img(input)
         omg = self._to_img(output, lim=len(img))
@@ -153,7 +183,9 @@ class SpatialVisMixin:
                     draw = ImageDraw.Draw(img_to_draw)
 
                     for bi, bbox in enumerate(img_bbox):
-                        draw.rectangle(bbox.to(torch.int64).tolist(), width=1, outline='green')
+                        draw.rectangle(
+                            bbox.to(torch.int64).tolist(), width=1, outline="green"
+                        )
                     o_img = torch.from_numpy(np.array(img_to_draw)).permute(2, 0, 1)
 
                 vis_imgs.append(o_img)
@@ -162,38 +194,45 @@ class SpatialVisMixin:
                 vis_imgs.append(i_img)
                 vis_imgs.append(o_img)
         grid = tv.utils.make_grid(vis_imgs, pad_value=128, nrow=16).detach().cpu()
-        self.logger.experiment.add_image(prefix + 'output', grid, self.current_epoch)
+        self.logger.experiment.add_image(prefix + "output", grid, self.current_epoch)
 
     @torch.no_grad()
-    def log_semantic_images(self, input, output, true_masks, pred_masks, prefix=''):
-        if not self.trainer.is_global_zero: return
+    def log_semantic_images(self, input, output, true_masks, pred_masks, prefix=""):
+        if not self.trainer.is_global_zero:
+            return
         assert len(true_masks.shape) == 5 and len(pred_masks.shape) == 5
         img = self._to_img(input)
         omg = self._to_img(output, lim=len(img))
-        true_masks = true_masks[:len(img)].to(torch.float).argmax(1).squeeze(1)
-        pred_masks = pred_masks[:len(img)].to(torch.float).argmax(1).squeeze(1)
-        tms = (self._cmap_tensor(true_masks) * 255.).to(torch.uint8)
-        pms = (self._cmap_tensor(pred_masks) * 255.).to(torch.uint8)
+        true_masks = true_masks[: len(img)].to(torch.float).argmax(1).squeeze(1)
+        pred_masks = pred_masks[: len(img)].to(torch.float).argmax(1).squeeze(1)
+        tms = (self._cmap_tensor(true_masks) * 255.0).to(torch.uint8)
+        pms = (self._cmap_tensor(pred_masks) * 255.0).to(torch.uint8)
         vis_imgs = list(itertools.chain.from_iterable(zip(img, omg, tms, pms)))
         grid = tv.utils.make_grid(vis_imgs, pad_value=128, nrow=16).detach().cpu()
 
-        if hasattr(self, 'special_output_vis_img_path') and self.special_output_vis_img_path is not None:
+        if (
+            hasattr(self, "special_output_vis_img_path")
+            and self.special_output_vis_img_path is not None
+        ):
             out_p = Path(self.special_output_vis_img_path)
-            if hasattr(self, 'special_output_batch_indx'):
+            if hasattr(self, "special_output_batch_indx"):
                 batch_idxs = self.special_output_batch_indx
             else:
-                batch_idxs = [0, 1, 2, 3, 4, 5, 6, 7] # Take first 8
+                batch_idxs = [0, 1, 2, 3, 4, 5, 6, 7]  # Take first 8
             for idx in batch_idxs:
-                self._save_img(img[idx], out_p, f'{self.data}_inp_{idx}.png')
-                self._save_img(omg[idx], out_p, f'{self.data}_out_{idx}.png')
-                self._save_img(tms[idx], out_p, f'{self.data}_tru_{idx}.png')
-                self._save_img(pms[idx], out_p, f'{self.data}_pre_{idx}.png')
-            self._save_img(grid, out_p, f'{self.data}_grid.png')
-        self.logger.experiment.add_image(prefix + 'segmentation', grid, self.current_epoch)
+                self._save_img(img[idx], out_p, f"{self.data}_inp_{idx}.png")
+                self._save_img(omg[idx], out_p, f"{self.data}_out_{idx}.png")
+                self._save_img(tms[idx], out_p, f"{self.data}_tru_{idx}.png")
+                self._save_img(pms[idx], out_p, f"{self.data}_pre_{idx}.png")
+            self._save_img(grid, out_p, f"{self.data}_grid.png")
+        self.logger.experiment.add_image(
+            prefix + "segmentation", grid, self.current_epoch
+        )
 
     @torch.no_grad()
-    def log_grid(self, input, name='grid'):
-        if not self.trainer.is_global_zero: return
+    def log_grid(self, input, name="grid"):
+        if not self.trainer.is_global_zero:
+            return
         img = self._to_img(input)
         nrow = int(np.sqrt(len(input)))
         grid = tv.utils.make_grid(img, pad_value=128, nrow=16).detach().cpu()
@@ -202,13 +241,13 @@ class SpatialVisMixin:
     @torch.no_grad()
     def _cmap_tensor(self, t):
         t_hw = t.cpu().detach().numpy()
-        o_hwc = CMAPSPEC['cmap'](t_hw)[...,:3] # drop alpha
-        o = torch.from_numpy(o_hwc).transpose(-1,-2).transpose(-2, -3)
+        o_hwc = CMAPSPEC["cmap"](t_hw)[..., :3]  # drop alpha
+        o = torch.from_numpy(o_hwc).transpose(-1, -2).transpose(-2, -3)
         return o
 
     def _save_img(self, tensor, outp, name):
         o = tensor
         if o.shape[0] <= 4:
-            o = o.permute(1,2,0)
+            o = o.permute(1, 2, 0)
         i = Image.fromarray(o.detach().cpu().numpy())
         i.save(str(Path(outp) / name))
