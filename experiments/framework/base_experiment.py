@@ -206,6 +206,7 @@ class BaseExperiment(pl.LightningModule):
             x = v.update(epoch, total_epoch)
             if x is not None and should_log:
                 self.logger.experiment[0].add_scalar(v.name, x, self.current_epoch)
+                self.logger[0].add_scalar(v.name, x, self.current_epoch)
                 # self.log(v.name, x, on_step=False, on_epoch=True)
 
     def update_itera_scheduled_values(self, step, total_steps, should_log=True):
@@ -213,6 +214,7 @@ class BaseExperiment(pl.LightningModule):
             x = v.update(step, total_steps)
             if x is not None and should_log:
                 self.logger.experiment[0].add_scalar(v.name, x, self.global_step)
+                self.logger[0].add_scalar(v.name, x, self.global_step)
                 # self.log(v.name, x, on_step=True, on_epoch=False)
 
     def should_log_pictures(self):
