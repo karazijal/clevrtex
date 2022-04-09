@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import warnings
 import gc
+import datetime
 
 import os
 import pytorch_lightning.plugins.environments
@@ -586,7 +587,12 @@ class BaseExperiment(pl.LightningModule):
             self.model.load_state_dict(
                 pl_model.model.state_dict()
             )  # Will fail if not compat, ie do not overwrite
-        logger = pl.loggers.TensorBoardLogger(str(self.path), name="", version="")
+        # logger = pl.loggers.TensorBoardLogger(str(self.path), name="", version="")
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+        wandb_logger = pl.loggers.WandbLogger(
+            project="clevertex",
+            name=f"{self.hparams.tag}-{timestamp}",
+        )
         checkpoint_callback = pl.callbacks.ModelCheckpoint(
             monitor=self.monitor,
             filename="best",
@@ -617,7 +623,7 @@ class BaseExperiment(pl.LightningModule):
         trainer_kwargs = {
             "default_root_dir": str(self.path),
             "gpus": gpus,
-            "logger": logger,
+            "logger": wandb_logger,
             "callbacks": clbs,
             "max_epochs": epochs,
             "min_epochs": int(0.2 * epochs)
