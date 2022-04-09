@@ -205,14 +205,14 @@ class BaseExperiment(pl.LightningModule):
         for v in self.__epo_scheduledvs:
             x = v.update(epoch, total_epoch)
             if x is not None and should_log:
-                self.logger.experiment.add_scalar(v.name, x, self.current_epoch)
+                self.logger.experiment[0].add_scalar(v.name, x, self.current_epoch)
                 # self.log(v.name, x, on_step=False, on_epoch=True)
 
     def update_itera_scheduled_values(self, step, total_steps, should_log=True):
         for v in self.__itr_scheduledvs:
             x = v.update(step, total_steps)
             if x is not None and should_log:
-                self.logger.experiment.add_scalar(v.name, x, self.global_step)
+                self.logger.experiment[0].add_scalar(v.name, x, self.global_step)
                 # self.log(v.name, x, on_step=True, on_epoch=False)
 
     def should_log_pictures(self):
@@ -237,7 +237,7 @@ class BaseExperiment(pl.LightningModule):
 
     # def add_scalar_step(self, key, value):
     #     """Logging from training loop causes GPU memory to skyrocket for some reason"""
-    #     self.logger.experiment.add_scalar(key, value, self.global_step)
+    #     self.logger.experiment[0].add_scalar(key, value, self.global_step)
 
     def on_fit_start(self) -> None:
         print(
@@ -587,10 +587,10 @@ class BaseExperiment(pl.LightningModule):
             self.model.load_state_dict(
                 pl_model.model.state_dict()
             )  # Will fail if not compat, ie do not overwrite
-        # logger = pl.loggers.TensorBoardLogger(str(self.path), name="", version="")
+        logger = pl.loggers.TensorBoardLogger(str(self.path), name="", version="")
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         wandb_logger = pl.loggers.WandbLogger(
-            project="clevertex",
+            project="clevrtex",
             name=f"{self.hparams.tag}-{timestamp}",
         )
         checkpoint_callback = pl.callbacks.ModelCheckpoint(
@@ -623,7 +623,7 @@ class BaseExperiment(pl.LightningModule):
         trainer_kwargs = {
             "default_root_dir": str(self.path),
             "gpus": gpus,
-            "logger": wandb_logger,
+            "logger": [logger, wandb_logger],
             "callbacks": clbs,
             "max_epochs": epochs,
             "min_epochs": int(0.2 * epochs)

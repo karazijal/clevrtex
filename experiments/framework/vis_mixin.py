@@ -48,7 +48,7 @@ class SpatialVisMixin:
         plt.axis("off")
         if colorbar:
             plt.colorbar()
-        self.logger.experiment.add_figure(name, fig, self.current_epoch)
+        self.logger.experiment[0].add_figure(name, fig, self.current_epoch)
 
     @torch.no_grad()
     def _to_img(self, img, lim=None, dim=-3):
@@ -128,7 +128,7 @@ class SpatialVisMixin:
             .detach()
             .cpu()
         )
-        self.logger.experiment.add_image(prefix + "recon", grid, self.current_epoch)
+        self.logger.experiment[0].add_image(prefix + "recon", grid, self.current_epoch)
 
     @torch.no_grad()
     def log_slots(self, slots, name="slots"):
@@ -141,7 +141,7 @@ class SpatialVisMixin:
             .detach()
             .cpu()
         )
-        self.logger.experiment.add_image(name, grid, self.current_epoch)
+        self.logger.experiment[0].add_image(name, grid, self.current_epoch)
 
     @torch.no_grad()
     def log_imgs_grid(self, input, *imgs, prefix=""):
@@ -159,7 +159,7 @@ class SpatialVisMixin:
         nrow = len(viss)
         nrow = (16 // nrow) * nrow
         grid = tv.utils.make_grid(vis, pad_value=128, nrow=nrow).detach().cpu()
-        self.logger.experiment.add_image(prefix + "outputs", grid, self.current_epoch)
+        self.logger.experiment[0].add_image(prefix + "outputs", grid, self.current_epoch)
 
     @torch.no_grad()
     def log_images(self, input, output, bboxes=None, pres=None, prefix=""):
@@ -194,7 +194,7 @@ class SpatialVisMixin:
                 vis_imgs.append(i_img)
                 vis_imgs.append(o_img)
         grid = tv.utils.make_grid(vis_imgs, pad_value=128, nrow=16).detach().cpu()
-        self.logger.experiment.add_image(prefix + "output", grid, self.current_epoch)
+        self.logger.experiment[0].add_image(prefix + "output", grid, self.current_epoch)
 
     @torch.no_grad()
     def log_semantic_images(self, input, output, true_masks, pred_masks, prefix=""):
@@ -225,7 +225,7 @@ class SpatialVisMixin:
                 self._save_img(tms[idx], out_p, f"{self.data}_tru_{idx}.png")
                 self._save_img(pms[idx], out_p, f"{self.data}_pre_{idx}.png")
             self._save_img(grid, out_p, f"{self.data}_grid.png")
-        self.logger.experiment.add_image(
+        self.logger.experiment[0].add_image(
             prefix + "segmentation", grid, self.current_epoch
         )
 
@@ -236,7 +236,7 @@ class SpatialVisMixin:
         img = self._to_img(input)
         nrow = int(np.sqrt(len(input)))
         grid = tv.utils.make_grid(img, pad_value=128, nrow=16).detach().cpu()
-        self.logger.experiment.add_image(name, grid, self.current_epoch)
+        self.logger.experiment[0].add_image(name, grid, self.current_epoch)
 
     @torch.no_grad()
     def _cmap_tensor(self, t):

@@ -56,7 +56,7 @@ def log_semantic_images(input, output, true_masks, pred_masks, prefix=""):
     pms = (_cmap_tensor(pred_masks) * 255.0).to(torch.uint8)
     vis_imgs = list(itertools.chain.from_iterable(zip(img, omg, tms, pms)))
     grid = tv.utils.make_grid(vis_imgs, pad_value=128, nrow=16).detach().cpu()
-    self.logger.experiment.add_image(prefix + "segmentation", grid, self.current_epoch)
+    self.logger.experiment[0].add_image(prefix + "segmentation", grid, self.current_epoch)
 
 
 @torch.no_grad()
