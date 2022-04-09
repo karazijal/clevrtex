@@ -81,7 +81,7 @@ def env_report():
         p = Path(os.environ["TMPDIR"]).absolute()
         if p.exists():
             print(f"{print_prefix()} tmp: {', '.join(([str(c) for c in p.iterdir()]))}")
-        p = p / "ool_data"
+        p = p / "datasets"
         if p.exists():
             print(f"{print_prefix()} {', '.join(([str(c) for c in p.iterdir()]))}")
 
@@ -98,11 +98,11 @@ def get_expe_path():
 
 
 def get_meta_path():
-    return Path.cwd() / "ool_data"
+    return Path.cwd() / "datasets"
 
 
 def get_data_paths():
-    return [Path.cwd() / "ool_data"]
+    return [Path.cwd() / "datasets"]
 
 
 def get_archived_data_paths():
